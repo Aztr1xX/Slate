@@ -97,6 +97,7 @@ Popup {
             // General
             Flickable {
                 contentHeight: g.implicitHeight + 48; clip: true; boundsBehavior: Flickable.StopAtBounds
+                WheelScroll {}
                 ColumnLayout {
                     id: g
                     x: 28; y: 24; width: parent.width - 56
@@ -120,6 +121,7 @@ Popup {
             // Playback
             Flickable {
                 contentHeight: pb.implicitHeight + 48; clip: true; boundsBehavior: Flickable.StopAtBounds
+                WheelScroll {}
                 ColumnLayout {
                     id: pb
                     x: 28; y: 24; width: parent.width - 56
@@ -152,6 +154,7 @@ Popup {
             // Exports
             Flickable {
                 contentHeight: ex.implicitHeight + 48; clip: true; boundsBehavior: Flickable.StopAtBounds
+                WheelScroll {}
                 ColumnLayout {
                     id: ex
                     x: 28; y: 24; width: parent.width - 56
@@ -180,6 +183,7 @@ Popup {
             // Transcription
             Flickable {
                 contentHeight: tr.implicitHeight + 48; clip: true; boundsBehavior: Flickable.StopAtBounds
+                WheelScroll {}
                 ColumnLayout {
                     id: tr
                     x: 28; y: 24; width: parent.width - 56
@@ -241,6 +245,7 @@ Popup {
                         Layout.fillHeight: true
                         clip: true
                         boundsBehavior: Flickable.StopAtBounds
+                        WheelScroll {}
                         ScrollBar.vertical: SScrollBar {}
                         model: { dlg.win.keymapRevision; const q = keySearch.text.toLowerCase(); return dlg.win.actionList.filter(a => !q || (a.name + " " + a.category + " " + dlg.win.keysLabel(a)).toLowerCase().indexOf(q) >= 0) }
                         delegate: Column {
@@ -299,6 +304,7 @@ Popup {
             // Windows
             Flickable {
                 contentHeight: wn.implicitHeight + 48; clip: true; boundsBehavior: Flickable.StopAtBounds
+                WheelScroll {}
                 ColumnLayout {
                     id: wn
                     x: 28; y: 24; width: parent.width - 56
@@ -317,6 +323,7 @@ Popup {
             // About
             Flickable {
                 contentHeight: ab.implicitHeight + 48; clip: true; boundsBehavior: Flickable.StopAtBounds
+                WheelScroll {}
                 ColumnLayout {
                     id: ab
                     x: 28; y: 24; width: parent.width - 56

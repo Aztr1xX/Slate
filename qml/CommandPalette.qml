@@ -86,6 +86,7 @@ Popup {
         model: pal.shown
         currentIndex: pal.sel
         boundsBehavior: Flickable.StopAtBounds
+        WheelScroll {}
         onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
         delegate: Rectangle {
             required property var modelData

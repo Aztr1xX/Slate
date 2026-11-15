@@ -46,6 +46,7 @@ Item {
         contentHeight: col.implicitHeight + 24
         clip: true
         boundsBehavior: Flickable.StopAtBounds
+        WheelScroll {}
         ScrollBar.vertical: SScrollBar {}
 
         ColumnLayout {

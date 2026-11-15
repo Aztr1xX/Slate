@@ -4,6 +4,10 @@ Every push to `main` publishes a new release named `1.1.<build number>`, and ins
 update themselves to it. Builds that only fixed the CI are left out below.
 Downloads: [Releases](https://github.com/Aztr1xX/Slate/releases).
 
+## 1.1.40 (2026-11-15)
+- The mouse wheel now scrolls Settings, the side panels and the command palette at a normal speed
+  (about three lines per notch) instead of a few pixels at a time. Touchpads scroll with your fingers.
+
 ## 1.1.37 (2026-11-15)
 A new look. Same layout and features, redrawn to be calmer and easier to read.
 

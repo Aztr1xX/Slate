@@ -54,6 +54,7 @@ Item {
             clip: true
             model: panel.shown
             boundsBehavior: Flickable.StopAtBounds
+            WheelScroll {}
             ScrollBar.vertical: SScrollBar {}
 
             delegate: Rectangle {

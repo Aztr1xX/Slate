@@ -49,7 +49,7 @@ qt_add_executable(slate WIN32 MACOSX_BUNDLE
 if(WIN32)
     set_target_properties(slate PROPERTIES OUTPUT_NAME Slate)
 endif()
-set(SLATE_QML Main Theme Icon Tip Btn SMenu SMenuItem SSwitch SSlider Segmented SScrollBar Toast Timeline TransportBar MarkerPanel ClipsPanel InfoPanel TranscriptPanel ScopesPanel AudioView EmptyState CommandPalette SettingsDialog OpenUrlDialog CropGuide AudioPanel DownloadDialog KeyCap Hud GoToField)
+set(SLATE_QML Main Theme Icon Tip Btn SMenu SMenuItem SSwitch SSlider Segmented SScrollBar Toast Timeline TransportBar MarkerPanel ClipsPanel InfoPanel TranscriptPanel ScopesPanel AudioView EmptyState CommandPalette SettingsDialog OpenUrlDialog CropGuide AudioPanel DownloadDialog KeyCap Hud GoToField WheelScroll)
 foreach(f IN LISTS SLATE_QML)
     # Put each QML file next to the module's qmldir so they see the C++ types and each other.
     set_source_files_properties(qml/${f}.qml PROPERTIES QT_RESOURCE_ALIAS ${f}.qml)
@@ -87,6 +87,7 @@ qt_add_qml_module(slate
         qml/SSlider.qml
         qml/Segmented.qml
         qml/SScrollBar.qml
+        qml/WheelScroll.qml
         qml/Toast.qml
         qml/Timeline.qml
         qml/TransportBar.qml
