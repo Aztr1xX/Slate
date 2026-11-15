@@ -22,9 +22,9 @@ MenuItem {
             font.pixelSize: Theme.fontBody
             anchors.verticalCenter: parent.verticalCenter
         }
-        Text { id: kt; visible: mi.keys !== ""; text: mi.keys; color: Theme.ink3; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+        Text { id: kt; visible: mi.keys !== ""; text: mi.keys; color: Theme.ink3; font.pixelSize: Theme.fontLabel; anchors.verticalCenter: parent.verticalCenter }
     }
     arrow: Icon { visible: mi.subMenu; x: mi.width - width - 8; anchors.verticalCenter: parent.verticalCenter; name: "chevron-right"; size: 14; color: Theme.ink2 }
     indicator: Item {}
-    background: Rectangle { radius: 5; color: mi.highlighted && mi.enabled ? Theme.hover : "transparent" }
+    background: Rectangle { radius: 4; color: mi.highlighted && mi.enabled ? Theme.hover : "transparent" }
 }

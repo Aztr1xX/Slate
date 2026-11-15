@@ -10,16 +10,16 @@ Item {
         anchors.centerIn: parent
         width: Math.min(560, parent.width - 48)
         spacing: 0
-        Image { Layout.alignment: Qt.AlignHCenter; source: "qrc:/Slate/assets/slate.png"; sourceSize: Qt.size(88, 88); width: 88; height: 88 }
-        Text { Layout.alignment: Qt.AlignHCenter; Layout.topMargin: 16; text: "Open something to review"; color: Theme.ink; font.pixelSize: 20; font.weight: Font.DemiBold }
+        Image { Layout.alignment: Qt.AlignHCenter; source: "qrc:/Slate/assets/slate.png"; sourceSize: Qt.size(72, 72); width: 72; height: 72 }
+        Text { Layout.alignment: Qt.AlignHCenter; Layout.topMargin: 16; text: "Open something to review"; color: Theme.ink; font.pixelSize: Theme.fontDisplay; font.weight: Font.DemiBold }
         Text { Layout.alignment: Qt.AlignHCenter; Layout.topMargin: 6; text: "Drop a clip, audio file or a whole folder anywhere in this window."; color: Theme.ink3; font.pixelSize: Theme.fontBody }
         Row {
             Layout.alignment: Qt.AlignHCenter
-            Layout.topMargin: 22
+            Layout.topMargin: 24
             spacing: 8
-            Btn { primary: true; glyph: "file"; text: "Open file"; keys: "Ctrl+O"; tip: "Open a video or audio file"; implicitHeight: 36; onClicked: es.win.openFileDialog() }
-            Btn { flat: false; glyph: "open"; text: "Open folder"; keys: "Ctrl+Shift+O"; tip: "Review every clip in a folder"; implicitHeight: 36; onClicked: es.win.openFolderDialog() }
-            Btn { flat: false; glyph: "download"; text: "Download video"; keys: "Ctrl+D"; tip: "Download from YouTube at the best quality"; implicitHeight: 36; onClicked: es.win.openDownloads() }
+            Btn { primary: true; glyph: "file"; text: "Open file"; keys: "Ctrl+O"; tip: "Open a video or audio file"; implicitHeight: 34; onClicked: es.win.openFileDialog() }
+            Btn { flat: false; glyph: "open"; text: "Open folder"; keys: "Ctrl+Shift+O"; tip: "Review every clip in a folder"; implicitHeight: 34; onClicked: es.win.openFolderDialog() }
+            Btn { flat: false; glyph: "download"; text: "Download video"; keys: "Ctrl+D"; tip: "Download from YouTube at the best quality"; implicitHeight: 34; onClicked: es.win.openDownloads() }
         }
 
         // the handful of keys that make reviewing fast
@@ -34,7 +34,7 @@ Item {
                     required property var modelData
                     spacing: 6
                     KeyCap { text: modelData[0]; anchors.verticalCenter: parent.verticalCenter }
-                    Text { text: modelData[1]; color: Theme.ink3; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                    Text { text: modelData[1]; color: Theme.ink3; font.pixelSize: Theme.fontLabel; anchors.verticalCenter: parent.verticalCenter }
                 }
             }
         }
@@ -43,10 +43,10 @@ Item {
             visible: App.recentFiles.length > 0
             Layout.fillWidth: true
             Layout.topMargin: 36
-            Text { text: "Recent"; color: Theme.ink2; font.pixelSize: 12; font.weight: Font.DemiBold }
+            Text { text: "Recent"; color: Theme.ink2; font.pixelSize: Theme.fontLabel; font.weight: Font.Medium }
             Item { Layout.fillWidth: true }
             Text {
-                text: "Clear"; color: clearMa.containsMouse ? Theme.ink : Theme.ink3; font.pixelSize: 12
+                text: "Clear"; color: clearMa.containsMouse ? Theme.ink : Theme.ink3; font.pixelSize: Theme.fontLabel
                 MouseArea { id: clearMa; anchors.fill: parent; anchors.margins: -4; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: App.clearRecent() }
             }
         }
@@ -69,7 +69,7 @@ Item {
                     width: parent.width - 40 - 44
                     spacing: 2
                     Text { width: parent.width; text: rr.fname; elide: Text.ElideMiddle; color: Theme.ink; font.pixelSize: Theme.fontBody }
-                    Text { width: parent.width; text: rr.folder; elide: Text.ElideMiddle; color: Theme.ink3; font.pixelSize: 11 }
+                    Text { width: parent.width; text: rr.folder; elide: Text.ElideMiddle; color: Theme.ink3; font.pixelSize: Theme.fontSmall }
                 }
                 Btn {
                     anchors.right: parent.right; anchors.rightMargin: 6; anchors.verticalCenter: parent.verticalCenter

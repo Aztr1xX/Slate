@@ -17,6 +17,9 @@
 #include <QProcess>
 #include <QKeySequence>
 #include <cmath>
+#ifdef Q_OS_WIN
+#include <qt_windows.h>
+#endif
 
 static QString settingsKey(const QString &file)
 {
@@ -345,6 +348,16 @@ bool AppController::isWindows() const
 #else
     return false;
 #endif
+}
+
+// Follows Windows' "Animation effects" accessibility switch.
+bool AppController::animationsEnabled() const
+{
+#ifdef Q_OS_WIN
+    BOOL on = TRUE;
+    if (SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, &on, 0)) return on != FALSE;
+#endif
+    return true;
 }
 
 QVariant AppController::setting(const QString &key, const QVariant &fallback) const

@@ -34,7 +34,7 @@ Item {
             Layout.fillWidth: true
             Layout.leftMargin: 14; Layout.rightMargin: 8
             Layout.preferredHeight: 44
-            Text { text: "Transcript"; color: Theme.ink; font.pixelSize: Theme.fontTitle; font.weight: Font.DemiBold }
+            Text { text: Transcript.state === "ready" ? Transcript.segments.length + " lines" : "Transcript"; color: Theme.ink3; font.pixelSize: Theme.fontLabel }
             Item { Layout.fillWidth: true }
             Btn {
                 id: moreBtn
@@ -67,7 +67,7 @@ Item {
             selectionColor: Theme.accent
             onTextChanged: panel.query = text
             Keys.onEscapePressed: { text = ""; focus = false }
-            background: Rectangle { radius: Theme.radius; color: Theme.bg; border.color: parent.activeFocus ? Theme.accent : Theme.line }
+            background: Rectangle { radius: Theme.radius; color: Theme.well; border.color: parent.activeFocus ? Theme.accent : Theme.line }
             Icon { x: 9; anchors.verticalCenter: parent.verticalCenter; name: "search"; size: 15; color: Theme.ink3 }
         }
 
@@ -80,7 +80,7 @@ Item {
             model: panel.lines
             spacing: 0
             boundsBehavior: Flickable.StopAtBounds
-            ScrollBar.vertical: ScrollBar {}
+            ScrollBar.vertical: SScrollBar {}
             property bool follow: true
             onMovementStarted: follow = false
             Connections {

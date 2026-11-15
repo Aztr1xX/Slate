@@ -451,7 +451,7 @@ ApplicationWindow {
         // header
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 46
+            Layout.preferredHeight: 44
             visible: !win.isFull
             color: Theme.chrome
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.line }
@@ -459,27 +459,45 @@ ApplicationWindow {
             RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: 14; anchors.rightMargin: 8
-                spacing: 10
-                Image { source: "qrc:/Slate/assets/slate-small-64.png"; sourceSize: Qt.size(22, 22); Layout.preferredWidth: 22; Layout.preferredHeight: 22 }
-                Column {
+                spacing: 8
+                Image { source: "qrc:/Slate/assets/slate-small-64.png"; sourceSize: Qt.size(20, 20); Layout.preferredWidth: 20; Layout.preferredHeight: 20 }
+                // one line: the folder, dimmed, then the clip; the full path is in the tooltip
+                Item {
+                    id: titleBox
+                    // natural width, shrinking (folder first) only when the header runs out of room
                     Layout.fillWidth: true
-                    Layout.maximumWidth: Math.min(560, Math.max(titleText.implicitWidth, pathText.implicitWidth) + 1)
-                    spacing: 1
-                    Text {
-                        id: titleText
-                        width: parent.width
-                        text: App.currentName || "Slate"
-                        color: Theme.ink; font.pixelSize: Theme.fontBody; font.weight: Font.DemiBold
-                        elide: Text.ElideMiddle
+                    Layout.minimumWidth: 80
+                    Layout.preferredWidth: Math.min(620, titleText.implicitWidth + (pathText.visible ? pathText.implicitWidth + 18 : 0) + 1)
+                    Layout.maximumWidth: Layout.preferredWidth
+                    Layout.preferredHeight: 22
+                    readonly property string folder: {
+                        const f = App.currentFile.substring(0, App.currentFile.length - App.currentName.length).replace(/[\\/]$/, "")
+                        return f.split(/[\\/]/).pop()
                     }
-                    Text {
-                        id: pathText
-                        visible: App.currentFile !== ""
+                    Row {
+                        id: titleRow
+                        anchors.verticalCenter: parent.verticalCenter
                         width: parent.width
-                        text: App.currentFile.substring(0, App.currentFile.length - App.currentName.length).replace(/[\\/]$/, "")
-                        color: Theme.ink3; font.pixelSize: 11
-                        elide: Text.ElideMiddle
+                        spacing: 6
+                        Text {
+                            id: pathText
+                            visible: App.currentFile !== "" && titleBox.folder !== ""
+                            width: Math.max(0, Math.min(implicitWidth, titleBox.width - titleText.implicitWidth - 18, titleBox.width * 0.5))
+                            text: titleBox.folder
+                            color: Theme.ink3; font.pixelSize: Theme.fontBody
+                            elide: Text.ElideMiddle
+                        }
+                        Text { visible: pathText.visible; text: "/"; color: Theme.ink4; font.pixelSize: Theme.fontBody }
+                        Text {
+                            id: titleText
+                            width: Math.min(implicitWidth, titleBox.width - (pathText.visible ? pathText.width + 18 : 0))
+                            text: App.currentName || "Slate"
+                            color: Theme.ink; font.pixelSize: Theme.fontBody; font.weight: Font.Medium
+                            elide: Text.ElideMiddle
+                        }
                     }
+                    HoverHandler { id: titleHover }
+                    Tip { visible: titleHover.hovered && App.currentFile !== ""; text: App.currentFile }
                 }
                 // the current clip's rating: click a star, or press 1 to 5
                 Row {
@@ -514,11 +532,11 @@ ApplicationWindow {
                         anchors.verticalCenter: parent.verticalCenter
                         width: 64; horizontalAlignment: Text.AlignHCenter
                         text: (App.queueIndex + 1) + " of " + App.queue.length
-                        color: Theme.ink2; font.pixelSize: 12
+                        color: Theme.ink2; font.pixelSize: Theme.fontLabel
                     }
                     Btn { glyph: "next"; iconSize: 15; implicitWidth: 28; tip: "Next clip"; keys: "PgDown"; enabled: App.queueIndex < App.queue.length - 1; onClicked: win.openNext(1) }
                 }
-                Item { Layout.fillWidth: true }
+                Item { Layout.fillWidth: true; Layout.preferredWidth: 0; Layout.minimumWidth: 0 }
 
                 // update chip: appears only when a newer build exists
                 Btn {
@@ -535,14 +553,14 @@ ApplicationWindow {
                 }
 
                 Rectangle {
-                    Layout.preferredWidth: 240
-                    Layout.preferredHeight: 30
+                    Layout.preferredWidth: 200
+                    Layout.preferredHeight: 28
                     radius: Theme.radius
                     color: sbMa.containsMouse ? Theme.hover : Theme.raise
-                    border.color: Theme.line
-                    Icon { x: 9; anchors.verticalCenter: parent.verticalCenter; name: "search"; size: 15; color: Theme.ink3 }
-                    Text { x: 32; anchors.verticalCenter: parent.verticalCenter; text: "Search actions"; color: Theme.ink3; font.pixelSize: 12 }
-                    KeyCap { anchors.right: parent.right; anchors.rightMargin: 6; anchors.verticalCenter: parent.verticalCenter; text: "Ctrl K" }
+                    Behavior on color { ColorAnimation { duration: Theme.fast } }
+                    Icon { x: 9; anchors.verticalCenter: parent.verticalCenter; name: "search"; size: 14; color: Theme.ink3 }
+                    Text { x: 30; anchors.verticalCenter: parent.verticalCenter; text: "Search actions"; color: Theme.ink3; font.pixelSize: Theme.fontLabel }
+                    KeyCap { anchors.right: parent.right; anchors.rightMargin: 5; anchors.verticalCenter: parent.verticalCenter; text: "Ctrl K" }
                     MouseArea { id: sbMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: win.openPalette() }
                 }
                 // download chip: shows progress while a video downloads in the background
@@ -556,7 +574,7 @@ ApplicationWindow {
                 }
                 Btn { glyph: "open"; tip: "Open file"; keys: "Ctrl+O"; onClicked: fileDialog.open() }
                 Btn { visible: !Downloader.busy; glyph: "download"; tip: "Download from YouTube"; keys: "Ctrl+D"; onClicked: win.openDownloads() }
-                Btn { glyph: "sidebar"; tip: win.panelsVisible ? "Hide side panel" : "Show side panel"; keys: "H"; active: win.panelsVisible; onClicked: win.togglePanels() }
+                Btn { glyph: "sidebar"; tip: win.panelsVisible ? "Hide side panel" : "Show side panel"; keys: "H"; active: win.panelsVisible && App.currentFile !== ""; onClicked: win.togglePanels() }
                 Btn { glyph: "settings"; tip: "Settings"; keys: "Ctrl+,"; onClicked: win.openSettings(0) }
             }
         }
@@ -789,69 +807,64 @@ ApplicationWindow {
                     anchors.fill: parent
                     anchors.leftMargin: 1
                     spacing: 0
-                    Rectangle {
+                    Item {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 54
-                        color: Theme.panel
+                        Layout.preferredHeight: 40
                         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.line }
                         Row {
                             id: tabRow
                             anchors.fill: parent
-                            anchors.leftMargin: 6; anchors.rightMargin: 6; anchors.topMargin: 5; anchors.bottomMargin: 6
-                            spacing: 2
+                            anchors.leftMargin: 8; anchors.rightMargin: 8
                             Repeater {
                                 model: [
-                                    { icon: "marker", label: "Markers", tip: "Markers and exports", keys: "Alt+1", badge: App.markers.count },
-                                    { icon: "list", label: "Clips", tip: "Clips in this folder", keys: "Alt+2", badge: App.queue.length > 1 ? App.queue.length : 0 },
-                                    { icon: "info", label: "Info", tip: "Media info", keys: "Alt+3", badge: Media.probe.vfr === true ? -1 : 0 },
-                                    { icon: "transcript", label: "Transcript", tip: "Transcript", keys: "Alt+4", badge: 0 },
-                                    { icon: "scope", label: "Scopes", tip: "Video scopes", keys: "Alt+5", badge: 0 },
-                                    { icon: "audio-track", label: "Audio", tip: "Audio levels", keys: "Alt+6", badge: 0 }
+                                    { label: "Markers", tip: "Markers and exports", keys: "Alt+1", warn: false },
+                                    { label: "Clips", tip: "Clips in this folder", keys: "Alt+2", warn: false },
+                                    { label: "Info", tip: "Media info", keys: "Alt+3", warn: Media.probe.vfr === true },
+                                    { label: "Transcript", tip: "Transcript", keys: "Alt+4", warn: false },
+                                    { label: "Scopes", tip: "Video scopes", keys: "Alt+5", warn: false },
+                                    { label: "Audio", tip: "Audio levels", keys: "Alt+6", warn: false }
                                 ]
                                 delegate: AbstractButton {
                                     id: tabBtn
                                     required property var modelData
                                     required property int index
                                     readonly property bool current: win.sideTab === index
-                                    width: (tabRow.width - 5 * tabRow.spacing) / 6; height: tabRow.height
+                                    // each tab is as wide as its label, and the spare room is shared out evenly
+                                    width: tl.implicitWidth + (tabRow.width - tabRow.labelsWidth) / 6
+                                    height: tabRow.height
                                     focusPolicy: Qt.NoFocus
                                     hoverEnabled: true
                                     onClicked: win.sideTab = index
-                                    background: Rectangle {
-                                        radius: Theme.radius
-                                        color: tabBtn.current ? Theme.hover : (tabBtn.hovered ? Theme.raise : "transparent")
+                                    background: Item {
                                         Rectangle {
-                                            visible: tabBtn.current
                                             anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom
-                                            width: 18; height: 2; radius: 1; color: Theme.accent
+                                            width: tl.implicitWidth + 8; height: 2; radius: 1
+                                            color: Theme.accent
+                                            opacity: tabBtn.current ? 1 : 0
+                                            Behavior on opacity { NumberAnimation { duration: Theme.fast } }
                                         }
                                     }
                                     contentItem: Item {
-                                        Column {
+                                        Text {
+                                            id: tl
                                             anchors.centerIn: parent
-                                            spacing: 3
-                                            Icon { anchors.horizontalCenter: parent.horizontalCenter; name: tabBtn.modelData.icon; size: 17; color: tabBtn.current ? Theme.ink : Theme.ink2 }
-                                            Text {
-                                                anchors.horizontalCenter: parent.horizontalCenter
-                                                width: Math.min(implicitWidth, tabBtn.width - 4); elide: Text.ElideRight
-                                                text: tabBtn.modelData.label
-                                                color: tabBtn.current ? Theme.ink : Theme.ink3
-                                                font.pixelSize: Theme.fontTiny; font.weight: tabBtn.current ? Font.DemiBold : Font.Normal
-                                            }
+                                            text: tabBtn.modelData.label
+                                            color: tabBtn.current ? Theme.ink : (tabBtn.hovered ? Theme.ink2 : Theme.ink3)
+                                            font.pixelSize: Theme.fontLabel; font.weight: Font.Medium
+                                            Behavior on color { ColorAnimation { duration: Theme.fast } }
                                         }
                                         Rectangle {
-                                            visible: tabBtn.modelData.badge !== 0
-                                            x: parent.width / 2 + 5; y: 1
-                                            width: tabBtn.modelData.badge < 0 ? 7 : Math.max(16, bl.implicitWidth + 8)
-                                            height: tabBtn.modelData.badge < 0 ? 7 : 15
-                                            radius: height / 2
-                                            color: tabBtn.modelData.badge < 0 ? Theme.warn : Theme.press
-                                            Text { id: bl; visible: tabBtn.modelData.badge > 0; anchors.centerIn: parent; text: tabBtn.modelData.badge; color: Theme.ink; font.pixelSize: Theme.fontTiny }
+                                            visible: tabBtn.modelData.warn
+                                            anchors.left: tl.right; anchors.leftMargin: 3; anchors.top: tl.top
+                                            width: 5; height: 5; radius: 2.5; color: Theme.warn
                                         }
                                     }
-                                    Tip { visible: tabBtn.hovered; text: tabBtn.modelData.tip; keys: tabBtn.modelData.keys }
+                                    Tip { visible: tabBtn.hovered; text: tabBtn.modelData.tip + (tabBtn.modelData.warn ? ". Variable frame rate" : ""); keys: tabBtn.modelData.keys }
                                 }
                             }
+                            // total label width, measured once with the tab font
+                            readonly property real labelsWidth: tabMetrics.advanceWidth
+                            TextMetrics { id: tabMetrics; font.pixelSize: Theme.fontLabel; font.weight: Font.Medium; text: "MarkersClipsInfoTranscriptScopesAudio" }
                         }
                     }
                     // Each tab is built the first time it's shown, then kept.

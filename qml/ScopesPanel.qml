@@ -10,17 +10,11 @@ Item {
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.leftMargin: 14; Layout.rightMargin: 8
-            Layout.preferredHeight: 44
-            Text { text: "Scopes"; color: Theme.ink; font.pixelSize: Theme.fontTitle; font.weight: Font.DemiBold }
-            Item { Layout.fillWidth: true }
-        }
+        Item { Layout.preferredHeight: 12 }
         Segmented {
             id: seg
             Layout.fillWidth: true
-            Layout.leftMargin: 10; Layout.rightMargin: 10
+            Layout.leftMargin: 12; Layout.rightMargin: 12
             options: [{ text: "Waveform" }, { text: "Parade" }, { text: "Histogram" }, { text: "Vector" }]
             current: App.setting("scopeMode", 0)
             onPicked: (i) => App.setSetting("scopeMode", i)
@@ -28,10 +22,9 @@ Item {
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: width * (seg.current === 3 ? 1 : 0.62)
-            Layout.margins: 10
+            Layout.margins: 12
             radius: Theme.radius
-            color: "#0d0e10"
-            border.color: Theme.line
+            color: Theme.well
             clip: true
             ScopeItem {
                 anchors.fill: parent; anchors.margins: 1

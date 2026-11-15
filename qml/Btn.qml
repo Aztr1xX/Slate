@@ -12,12 +12,12 @@ AbstractButton {
     property bool flat: true
     property bool active: checked
     property int iconSize: 18
-    property color iconColor: primary ? Theme.accentInk : (active ? Theme.accent : (b.enabled ? Theme.ink : Theme.ink3))
+    property color iconColor: primary ? Theme.accentInk : (active ? Theme.accentText : (b.hovered || !b.flat ? Theme.ink : Theme.ink2))
     focusPolicy: Qt.NoFocus
     hoverEnabled: true
     implicitHeight: 32
     implicitWidth: text.length ? row.implicitWidth + (icon ? 20 : 24) : 32
-    opacity: enabled ? 1 : 0.45
+    opacity: enabled ? 1 : 0.4
 
     contentItem: Item {
         Row {
@@ -28,19 +28,18 @@ AbstractButton {
             Text {
                 visible: b.text.length > 0
                 text: b.text
-                color: b.primary ? Theme.accentInk : (b.active ? Theme.accent : Theme.ink)
+                color: b.primary ? Theme.accentInk : (b.active ? Theme.accentText : Theme.ink)
                 font.pixelSize: Theme.fontBody
-                font.weight: b.primary ? Font.DemiBold : Font.Normal
+                font.weight: Font.Medium
                 anchors.verticalCenter: parent.verticalCenter
             }
         }
     }
     background: Rectangle {
         radius: Theme.radius
-        color: b.primary ? (b.down ? Qt.darker(Theme.accent, 1.15) : (b.hovered ? Theme.accentHover : Theme.accent))
-                         : (b.down ? Theme.press : (b.hovered ? Theme.hover : (b.flat ? "transparent" : Theme.raise)))
-        border.color: b.flat || b.primary ? "transparent" : Theme.line
-        Behavior on color { ColorAnimation { duration: 90 } }
+        color: b.primary ? (b.down ? Qt.darker(Theme.accentFill, 1.12) : (b.hovered ? Theme.accentFillHover : Theme.accentFill))
+                         : (b.down ? Theme.press : (b.hovered ? Theme.hover : (b.flat ? (b.active ? Theme.accentSoft : "transparent") : Theme.raise)))
+        Behavior on color { ColorAnimation { duration: Theme.fast } }
     }
     Tip { visible: b.hovered && b.tip.length > 0; text: b.tip; keys: b.keys }
 }

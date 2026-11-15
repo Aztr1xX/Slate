@@ -40,34 +40,33 @@ Item {
             Btn { glyph: "out"; tip: "Set Out point"; keys: "O"; enabled: bar.mpv.loaded; active: App.outPoint >= 0; onClicked: bar.win.setOut() }
             Btn { glyph: "marker"; tip: "Add marker"; keys: "M"; enabled: bar.mpv.loaded; onClicked: bar.win.addMarker() }
         }
-        Rectangle { visible: !bar.compact; width: 1; height: 18; color: Theme.line; anchors.verticalCenter: parent.verticalCenter }
-        Item { width: bar.compact ? 0 : 6; height: 1 }
+        Item { width: bar.compact ? 0 : 14; height: 1 }
         Btn { glyph: "frame-back"; tip: "Previous frame"; keys: ","; enabled: bar.mpv.loaded; anchors.verticalCenter: parent.verticalCenter; onClicked: bar.mpv.stepFrame(-1) }
         AbstractButton {
             id: play
             anchors.verticalCenter: parent.verticalCenter
-            width: 42; height: 42
+            width: 40; height: 40
             focusPolicy: Qt.NoFocus
             hoverEnabled: true
             enabled: bar.mpv.loaded
             onClicked: { bar.win.rewindRate = 0; bar.mpv.togglePause() }
             background: Rectangle {
-                radius: 21
-                color: play.down ? "#d9dce1" : (play.hovered ? "#ffffff" : Theme.ink)
+                radius: 20
+                color: play.down ? Theme.ink2 : (play.hovered ? "#ffffff" : Theme.ink)
+                Behavior on color { ColorAnimation { duration: Theme.fast } }
                 opacity: play.enabled ? 1 : 0.35
             }
             contentItem: Item {
                 Icon {
                     anchors.centerIn: parent
                     name: bar.mpv.paused || !bar.mpv.loaded ? "play" : "pause"
-                    size: 20; color: "#0e0f11"
+                    size: 18; color: Theme.bg
                 }
             }
             Tip { visible: play.hovered; text: bar.mpv.paused ? "Play" : "Pause"; keys: "Space  ·  J K L" }
         }
         Btn { glyph: "frame-fwd"; tip: "Next frame"; keys: "."; enabled: bar.mpv.loaded; anchors.verticalCenter: parent.verticalCenter; onClicked: bar.mpv.stepFrame(1) }
-        Item { width: 6; height: 1 }
-        Rectangle { width: 1; height: 18; color: Theme.line; anchors.verticalCenter: parent.verticalCenter }
+        Item { width: 14; height: 1 }
         Btn {
             anchors.verticalCenter: parent.verticalCenter
             glyph: "loop"; tip: "Loop In to Out"; keys: "Ctrl+L"
@@ -142,7 +141,7 @@ Item {
             SMenu {
                 id: tracksMenu
                 implicitWidth: 300
-                MenuSeparator { contentItem: Text { text: "AUDIO"; color: Theme.ink3; font.pixelSize: 10; font.letterSpacing: 0.8; leftPadding: 10; topPadding: 4 } }
+                MenuSeparator { contentItem: Text { text: "Audio track"; color: Theme.ink3; font.pixelSize: Theme.fontSmall; font.weight: Font.Medium; leftPadding: 10; topPadding: 4 } }
                 Repeater {
                     model: bar.mpv.audioTracks
                     delegate: SMenuItem {
@@ -152,7 +151,7 @@ Item {
                         onTriggered: bar.mpv.setAudioTrack(modelData.id)
                     }
                 }
-                MenuSeparator { contentItem: Text { text: "SUBTITLES"; color: Theme.ink3; font.pixelSize: 10; font.letterSpacing: 0.8; leftPadding: 10; topPadding: 6 } }
+                MenuSeparator { contentItem: Text { text: "Subtitles"; color: Theme.ink3; font.pixelSize: Theme.fontSmall; font.weight: Font.Medium; leftPadding: 10; topPadding: 6 } }
                 SMenuItem { text: "Off"; checkable: true; checked: bar.mpv.subtitleTrack === 0; onTriggered: bar.mpv.setSubtitleTrack(0) }
                 Repeater {
                     model: bar.mpv.subtitleTracks

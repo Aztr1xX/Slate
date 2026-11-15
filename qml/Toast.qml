@@ -14,12 +14,12 @@ Rectangle {
     property real maxWidth: 640
     width: Math.min(maxWidth, row.implicitWidth + 28)
     height: 36
-    radius: 18
-    color: "#ee1f2226"
+    radius: Theme.radiusMd
+    color: Qt.rgba(0.07, 0.08, 0.10, 0.94)
     border.color: Theme.lineStrong
     opacity: 0
     visible: opacity > 0
-    Behavior on opacity { NumberAnimation { duration: 160 } }
+    Behavior on opacity { NumberAnimation { duration: Theme.normal } }
 
     Row {
         id: row
@@ -35,8 +35,8 @@ Rectangle {
             id: reveal
             visible: t.revealPath.length > 0
             text: App.isWindows ? "Show in Explorer" : "Show in folder"
-            color: revealMouse.containsMouse ? Theme.accentHover : Theme.accent
-            font.pixelSize: Theme.fontBody; font.weight: Font.DemiBold
+            color: revealMouse.containsMouse ? Theme.ink : Theme.accentText
+            font.pixelSize: Theme.fontBody; font.weight: Font.Medium
             anchors.verticalCenter: parent.verticalCenter
             MouseArea { id: revealMouse; anchors.fill: parent; anchors.margins: -6; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: App.revealInFolder(t.revealPath) }
         }

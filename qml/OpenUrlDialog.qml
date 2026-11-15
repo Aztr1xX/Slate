@@ -14,8 +14,10 @@ Popup {
     anchors.centerIn: Overlay.overlay
     width: Math.min(560, parent.width - 60)
     padding: 22
-    Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, 0.5) }
-    background: Rectangle { color: Theme.panel; radius: Theme.radiusLg; border.color: Theme.lineStrong }
+    Overlay.modal: Rectangle { color: Theme.scrim }
+    enter: Transition { ParallelAnimation { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.fast } NumberAnimation { property: "scale"; from: 0.98; to: 1; duration: Theme.normal; easing.type: Easing.OutCubic } } }
+    exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.fast } }
+    background: Rectangle { color: Theme.popup; radius: Theme.radiusLg; border.color: Theme.lineStrong }
     onOpened: { field.text = ""; field.forceActiveFocus() }
     function go() { const u = field.text.trim(); if (!u) return; close(); accepted(u) }
 
@@ -31,7 +33,7 @@ Popup {
             placeholderTextColor: Theme.ink3
             color: Theme.ink; font.pixelSize: Theme.fontBody
             selectByMouse: true; selectionColor: Theme.accent
-            background: Rectangle { radius: Theme.radius; color: Theme.bg; border.color: field.activeFocus ? Theme.accent : Theme.line }
+            background: Rectangle { radius: Theme.radius; color: Theme.well; border.color: field.activeFocus ? Theme.accent : Theme.line }
             onAccepted: dlg.go()
             Keys.onEscapePressed: dlg.close()
         }

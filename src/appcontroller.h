@@ -39,6 +39,7 @@ class AppController : public QObject
     Q_PROPERTY(int ratingsRevision READ ratingsRevision NOTIFY ratingsChanged)
     Q_PROPERTY(QString version READ version CONSTANT)
     Q_PROPERTY(bool isWindows READ isWindows CONSTANT)
+    Q_PROPERTY(bool animationsEnabled READ animationsEnabled CONSTANT)
 
 public:
     explicit AppController(QObject *parent = nullptr);
@@ -62,6 +63,7 @@ public:
     int ratingsRevision() const { return m_ratingsRev; }
     QString version() const;
     bool isWindows() const;
+    bool animationsEnabled() const;
 
     // Returns the local path or URL to hand to mpv, and remembers it. Empty if not playable.
     Q_INVOKABLE QString prepareOpen(const QVariant &urlOrPath);

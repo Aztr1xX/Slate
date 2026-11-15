@@ -19,7 +19,9 @@ Popup {
     height: 62 + Math.max(40, Math.min(10, pal.shown.length) * 36) + 8
     padding: 0
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-    Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, 0.45) }
+    Overlay.modal: Rectangle { color: Theme.scrim }
+    enter: Transition { ParallelAnimation { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.fast } NumberAnimation { property: "scale"; from: 0.98; to: 1; duration: Theme.normal; easing.type: Easing.OutCubic } } }
+    exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.fast } }
 
     // Recently run actions come first; then names that start with what you typed.
     property var recent: String(App.setting("paletteRecent", "")).split("|").filter(x => x)

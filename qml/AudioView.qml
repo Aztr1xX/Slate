@@ -29,7 +29,7 @@ Item {
         Item {
             id: wave
             width: parent.width; height: Math.min(260, av.height * 0.4)
-            WaveformItem { id: wf; anchors.fill: parent; color: "#8b94a1"; peakColor: "#3b4048" }
+            WaveformItem { id: wf; anchors.fill: parent; color: "#7e8696"; peakColor: "#353a45" }
             Rectangle {
                 width: av.mpv.duration > 0 ? parent.width * av.mpv.position / av.mpv.duration : 0
                 height: parent.height
@@ -57,7 +57,7 @@ Item {
                 Column {
                     anchors.centerIn: parent; spacing: 3
                     Text { anchors.horizontalCenter: parent.horizontalCenter; text: value; color: Theme.ink; font.pixelSize: 16; font.family: Theme.mono }
-                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: label; color: Theme.ink3; font.pixelSize: 10; font.letterSpacing: 0.6 }
+                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: label; color: Theme.ink3; font.pixelSize: Theme.fontSmall }
                 }
             }
             Stat { label: "INTEGRATED"; value: Media.loudness.integrated !== undefined ? Media.loudness.integrated.toFixed(1) + " LUFS" : "…" }

@@ -21,8 +21,10 @@ Popup {
     height: Math.min(620, parent.height - 60)
     padding: 0
     closePolicy: capturing ? Popup.NoAutoClose : (Popup.CloseOnEscape | Popup.CloseOnPressOutside)
-    Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, 0.5) }
-    background: Rectangle { color: Theme.panel; radius: Theme.radiusLg; border.color: Theme.lineStrong }
+    Overlay.modal: Rectangle { color: Theme.scrim }
+    enter: Transition { ParallelAnimation { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.fast } NumberAnimation { property: "scale"; from: 0.98; to: 1; duration: Theme.normal; easing.type: Easing.OutCubic } } }
+    exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.fast } }
+    background: Rectangle { color: Theme.popup; radius: Theme.radiusLg; border.color: Theme.lineStrong }
     onClosed: capturingId = ""
 
     readonly property var pages: [
@@ -74,11 +76,11 @@ Popup {
                         required property var modelData
                         required property int index
                         width: parent.width; height: 34; radius: Theme.radius
-                        color: dlg.page === index ? Theme.hover : (nm.containsMouse ? Theme.raise : "transparent")
+                        color: dlg.page === index ? Theme.press : (nm.containsMouse ? Theme.hover : "transparent")
                         Row {
                             x: 10; anchors.verticalCenter: parent.verticalCenter; spacing: 10
                             Icon { name: modelData.icon; size: 16; color: dlg.page === index ? Theme.ink : Theme.ink2; anchors.verticalCenter: parent.verticalCenter }
-                            Text { text: modelData.text; color: dlg.page === index ? Theme.ink : Theme.ink2; font.pixelSize: Theme.fontBody; anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: modelData.text; color: dlg.page === index ? Theme.ink : Theme.ink2; font.pixelSize: Theme.fontBody; font.weight: dlg.page === index ? Font.Medium : Font.Normal; anchors.verticalCenter: parent.verticalCenter }
                         }
                         MouseArea { id: nm; anchors.fill: parent; hoverEnabled: true; onClicked: { dlg.capturingId = ""; dlg.page = index } }
                     }
@@ -158,7 +160,7 @@ Popup {
                     Text { text: "Save clips, markers and frames to"; color: Theme.ink; font.pixelSize: Theme.fontBody }
                     Rectangle {
                         Layout.fillWidth: true; height: 36; radius: Theme.radius
-                        color: Theme.bg; border.color: Theme.line
+                        color: Theme.well; border.color: Theme.line
                         Text { id: exportLabel; x: 12; width: parent.width - 24; anchors.verticalCenter: parent.verticalCenter; text: App.exportFolderLabel(); color: Theme.ink2; font.pixelSize: 12; elide: Text.ElideMiddle }
                     }
                     Row {
@@ -229,7 +231,7 @@ Popup {
                         placeholderTextColor: Theme.ink3
                         color: Theme.ink; font.pixelSize: Theme.fontBody
                         selectByMouse: true; selectionColor: Theme.accent
-                        background: Rectangle { radius: Theme.radius; color: Theme.bg; border.color: keySearch.activeFocus ? Theme.accent : Theme.line }
+                        background: Rectangle { radius: Theme.radius; color: Theme.well; border.color: keySearch.activeFocus ? Theme.accent : Theme.line }
                         Icon { x: 9; anchors.verticalCenter: parent.verticalCenter; name: "search"; size: 15; color: Theme.ink3 }
                     }
                     Note { text: dlg.capturing ? "Press the new key combination. Esc cancels, Backspace removes the shortcut." : "Click a shortcut to change it." }
@@ -239,7 +241,7 @@ Popup {
                         Layout.fillHeight: true
                         clip: true
                         boundsBehavior: Flickable.StopAtBounds
-                        ScrollBar.vertical: ScrollBar {}
+                        ScrollBar.vertical: SScrollBar {}
                         model: { dlg.win.keymapRevision; const q = keySearch.text.toLowerCase(); return dlg.win.actionList.filter(a => !q || (a.name + " " + a.category + " " + dlg.win.keysLabel(a)).toLowerCase().indexOf(q) >= 0) }
                         delegate: Column {
                             id: kr
@@ -248,7 +250,7 @@ Popup {
                             readonly property bool editing: dlg.capturingId === modelData.id
                             readonly property bool firstOfGroup: index === 0 || keyList.model[index - 1].category !== modelData.category
                             width: keyList.width - 10
-                            Text { visible: kr.firstOfGroup; text: kr.modelData.category.toUpperCase(); color: Theme.ink3; font.pixelSize: 10; font.letterSpacing: 0.8; topPadding: kr.index === 0 ? 4 : 14; bottomPadding: 4 }
+                            Text { visible: kr.firstOfGroup; text: kr.modelData.category; color: Theme.ink2; font.pixelSize: Theme.fontLabel; font.weight: Font.Medium; topPadding: kr.index === 0 ? 4 : 14; bottomPadding: 4 }
                             Rectangle {
                             width: parent.width; height: 36; radius: Theme.radius
                             color: krm.containsMouse || kr.editing ? Theme.raise : "transparent"
@@ -256,7 +258,7 @@ Popup {
                             Rectangle {
                                 anchors.right: parent.right; anchors.rightMargin: 8; anchors.verticalCenter: parent.verticalCenter
                                 width: Math.max(60, kl.implicitWidth + 16); height: 24; radius: 4
-                                color: kr.editing ? Theme.accentSoft : Theme.bg
+                                color: kr.editing ? Theme.accentSoft : Theme.well
                                 border.color: kr.editing ? Theme.accent : Theme.lineStrong
                                 Text {
                                     id: kl; anchors.centerIn: parent
@@ -352,7 +354,7 @@ Popup {
                     }
                     Toggle { visible: Updater.supported; key: "autoUpdate"; text: "Download updates automatically" }
                     Divider {}
-                    Note { text: "Built with Qt (LGPL v3), libmpv (LGPL v2.1+) and FFmpeg, which runs as a separate program. Transcription uses whisper.cpp (MIT) and OpenAI's Whisper models (MIT). URL playback uses yt-dlp (Unlicense)." }
+                    Note { text: "Built with Qt (LGPL v3), libmpv (LGPL v2.1+) and FFmpeg, which runs as a separate program. Transcription uses whisper.cpp (MIT) and OpenAI's Whisper models (MIT). URL playback uses yt-dlp (Unlicense). The typeface is Inter (SIL Open Font License)." }
                     Note { text: "Slate itself: personal use, all rights reserved." }
                 }
             }

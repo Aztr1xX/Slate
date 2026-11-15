@@ -21,8 +21,7 @@ Item {
             Layout.fillWidth: true
             Layout.leftMargin: 14; Layout.rightMargin: 8
             Layout.preferredHeight: 44
-            Text { text: "Clips"; color: Theme.ink; font.pixelSize: Theme.fontTitle; font.weight: Font.DemiBold }
-            Text { text: App.queue.length > 0 ? (panel.minStars ? panel.shown.length + " of " + App.queue.length : App.queue.length) : ""; color: Theme.ink3; font.pixelSize: Theme.fontBody }
+            Text { text: panel.minStars ? panel.shown.length + " of " + App.queue.length + " clips" : (App.queue.length === 1 ? "1 clip" : App.queue.length + " clips"); color: Theme.ink3; font.pixelSize: Theme.fontLabel }
             Item { Layout.fillWidth: true }
             Btn {
                 id: filterBtn
@@ -55,7 +54,7 @@ Item {
             clip: true
             model: panel.shown
             boundsBehavior: Flickable.StopAtBounds
-            ScrollBar.vertical: ScrollBar {}
+            ScrollBar.vertical: SScrollBar {}
 
             delegate: Rectangle {
                 id: row
@@ -88,7 +87,7 @@ Item {
                         anchors.right: parent.right; anchors.bottom: parent.bottom; anchors.margins: 3
                         width: dl.implicitWidth + 6; height: 14; radius: 3
                         color: Qt.rgba(0, 0, 0, 0.7)
-                        Text { id: dl; anchors.centerIn: parent; text: App.formatClock(parent.d); color: "white"; font.pixelSize: 9; font.family: Theme.mono }
+                        Text { id: dl; anchors.centerIn: parent; text: App.formatClock(parent.d); color: "white"; font.pixelSize: Theme.fontTiny; font.weight: Font.Medium }
                     }
                 }
                 Column {
@@ -102,7 +101,7 @@ Item {
                         elide: Text.ElideMiddle
                         color: row.current ? Theme.ink : Theme.ink
                         font.pixelSize: Theme.fontBody
-                        font.weight: row.current ? Font.DemiBold : Font.Normal
+                        font.weight: row.current ? Font.Medium : Font.Normal
                     }
                     Row {
                         spacing: 1
@@ -112,7 +111,7 @@ Item {
                                 required property int index
                                 name: index < row.stars ? "star-filled" : "star"
                                 size: 13
-                                color: index < row.stars ? Theme.note : (hov.hovered ? Theme.ink3 : "#3a3e45")
+                                color: index < row.stars ? Theme.note : (hov.hovered ? Theme.ink3 : Theme.ink4)
                                 MouseArea {
                                     anchors.fill: parent; anchors.margins: -2
                                     cursorShape: Qt.PointingHandCursor

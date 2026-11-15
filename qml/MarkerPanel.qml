@@ -18,8 +18,7 @@ Item {
             Layout.fillWidth: true
             Layout.leftMargin: 14; Layout.rightMargin: 8
             Layout.preferredHeight: 44
-            Text { text: "Markers"; color: Theme.ink; font.pixelSize: Theme.fontTitle; font.weight: Font.DemiBold }
-            Text { text: App.markers.count > 0 ? App.markers.count : ""; color: Theme.ink3; font.pixelSize: Theme.fontBody }
+            Text { text: App.markers.count === 1 ? "1 marker" : App.markers.count + " markers"; color: Theme.ink3; font.pixelSize: Theme.fontLabel }
             Item { Layout.fillWidth: true }
             Btn { glyph: "plus"; tip: "Add marker at playhead"; keys: "M"; enabled: panel.mpv.loaded; onClicked: panel.win.addMarker() }
         }
@@ -31,7 +30,7 @@ Item {
             clip: true
             model: App.markers
             boundsBehavior: Flickable.StopAtBounds
-            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+            ScrollBar.vertical: SScrollBar {}
             readonly property int playingRow: { App.markers.count; return App.markers.rowNear(panel.mpv.position, panel.mpv.fps > 0 ? 0.5 / panel.mpv.fps : 0.02) }
 
             delegate: Rectangle {
@@ -42,8 +41,10 @@ Item {
                 required property int kind
                 width: list.width
                 height: 52
-                color: rowHover.hovered ? Theme.raise : (index === list.playingRow ? Theme.accentSoft : "transparent")
+                color: index === list.playingRow ? Theme.accentSoft : (rowHover.hovered ? Theme.raise : "transparent")
+                Behavior on color { ColorAnimation { duration: Theme.fast } }
                 HoverHandler { id: rowHover }
+                Rectangle { visible: row.index === list.playingRow; width: 2; height: parent.height; color: Theme.accent }
 
                 MouseArea {
                     anchors.fill: parent
@@ -100,8 +101,8 @@ Item {
                         font.pixelSize: Theme.fontBody
                         color: Theme.ink
                         selectByMouse: true
-                        selectionColor: Theme.accent
-                        background: Rectangle { color: Theme.bg; border.color: Theme.accent; radius: 4 }
+                        selectionColor: Theme.accentFill; selectedTextColor: "#ffffff"
+                        background: Rectangle { color: Theme.well; border.color: Theme.accent; radius: 4 }
                         // Hide and give the keyboard back to the window, or shortcuts would keep typing into the hidden field.
                         function done(save) {
                             if (!visible) return
@@ -117,8 +118,8 @@ Item {
                     }
                     Row {
                         spacing: 8
-                        Text { text: panel.fmt(row.time); color: Theme.ink3; font.pixelSize: Theme.fontSmall; font.family: Theme.mono }
-                        Text { visible: row.kind !== 0; text: Theme.kindName(row.kind); color: Theme.kindColor(row.kind); font.pixelSize: Theme.fontSmall }
+                        Text { text: panel.fmt(row.time); color: Theme.ink3; font.pixelSize: Theme.fontSmall }
+                        Text { visible: row.kind !== 0; text: Theme.kindName(row.kind); color: Theme.kindColor(row.kind); font.pixelSize: Theme.fontSmall; font.weight: Font.Medium }
                     }
                 }
                 Btn {
@@ -151,7 +152,7 @@ Item {
                 Text {
                     width: parent.width; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
                     text: "Press M while reviewing to drop a note. Shift+M marks a good take, Alt+M a mistake. They export to DaVinci Resolve."
-                    color: Theme.ink3; font.pixelSize: 12
+                    color: Theme.ink3; font.pixelSize: Theme.fontLabel; lineHeight: 1.15
                 }
             }
         }
@@ -159,24 +160,21 @@ Item {
         Rectangle { Layout.fillWidth: true; height: 1; color: Theme.line }
 
         // In / Out range
-        Rectangle {
+        Item {
             visible: App.inPoint >= 0 || App.outPoint >= 0
             Layout.fillWidth: true
-            Layout.leftMargin: 10; Layout.rightMargin: 10; Layout.topMargin: 10
-            implicitHeight: 44
-            radius: Theme.radius
-            color: Theme.raise
-            border.color: Theme.line
+            Layout.leftMargin: 2; Layout.rightMargin: 6; Layout.topMargin: 8
+            implicitHeight: 40
             readonly property bool both: App.inPoint >= 0 && App.outPoint > App.inPoint
             Column {
                 x: 12; anchors.verticalCenter: parent.verticalCenter
                 spacing: 2
                 Text {
-                    text: (App.inPoint >= 0 ? panel.fmt(App.inPoint) : "Start") + "  →  " + (App.outPoint >= 0 ? panel.fmt(App.outPoint) : "End")
-                    color: Theme.ink; font.pixelSize: 12; font.family: Theme.mono
+                    text: (App.inPoint >= 0 ? panel.fmt(App.inPoint) : "Start") + "  –  " + (App.outPoint >= 0 ? panel.fmt(App.outPoint) : "End")
+                    color: Theme.ink; font.pixelSize: Theme.fontBody
                 }
                 Text {
-                    text: parent.parent.both ? "Clip length " + App.formatClock(App.outPoint - App.inPoint) + " (" + (App.outPoint - App.inPoint).toFixed(2) + " s)"
+                    text: parent.parent.both ? "In to Out  ·  " + App.formatClock(App.outPoint - App.inPoint) + " (" + (App.outPoint - App.inPoint).toFixed(2) + " s)"
                                              : (App.inPoint >= 0 ? "Press O to set the Out point" : "Press I to set the In point")
                     color: Theme.ink3; font.pixelSize: Theme.fontSmall
                 }
@@ -200,14 +198,14 @@ Item {
                 Layout.fillWidth: true; height: 4; radius: 2; color: Theme.press
                 Rectangle { width: parent.width * App.busyProgress; height: parent.height; radius: 2; color: Theme.accent }
             }
-            Text { text: Math.round(App.busyProgress * 100) + "%"; color: Theme.ink2; font.pixelSize: 12; font.family: Theme.mono }
+            Text { text: Math.round(App.busyProgress * 100) + "%"; color: Theme.ink2; font.pixelSize: Theme.fontLabel }
             Btn { glyph: "close"; iconSize: 15; implicitWidth: 26; implicitHeight: 26; tip: "Cancel export"; onClicked: App.cancelJob() }
         }
 
         RowLayout {
             Layout.fillWidth: true
-            Layout.margins: 10
-            spacing: 6
+            Layout.margins: 12
+            spacing: 8
             Btn {
                 Layout.fillWidth: true
                 primary: true
