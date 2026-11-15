@@ -152,6 +152,7 @@ Popup {
             spacing: 8
             TextField {
                 id: field
+                objectName: "downloadLink"
                 Layout.fillWidth: true
                 implicitHeight: 36
                 enabled: !dlg.working

@@ -403,7 +403,13 @@ public:
                   if (QObject *dd = m_win->findChild<QObject *>(QStringLiteral("downloadDialog"))) dd->setProperty("presetUrl", qEnvironmentVariable("SLATE_TOUR_DOWNLOAD"));
                   QMetaObject::invokeMethod(m_win, "openDownloads");
               }, 6000 },
+            { QStringLiteral("09c2-download-docs"), [this] {
+                  // README screenshot: show a typical link instead of the local test address
+                  if (QObject *f = m_win->findChild<QObject *>(QStringLiteral("downloadLink"))) f->setProperty("text", QStringLiteral("https://www.youtube.com/watch?v=aqz-KE-bpKQ"));
+                  Downloader::instance()->setFolder(QStringLiteral("C:\\Users\\You\\Downloads\\Slate"));
+              }, 500 },
             { QStringLiteral("09d-download-audio"), [this] {
+                  Downloader::instance()->resetFolder();
                   if (QObject *dd = m_win->findChild<QObject *>(QStringLiteral("downloadDialog"))) dd->setProperty("kind", QStringLiteral("audio"));
               }, 800 },
             { QStringLiteral("09e-download-progress"), [this] {
