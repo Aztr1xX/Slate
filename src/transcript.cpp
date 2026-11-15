@@ -150,6 +150,7 @@ void Transcript::extractAudio()
     // whisper wants 16 kHz mono 16-bit WAV.
     m_wav = QDir::tempPath() + QStringLiteral("/slate-%1.wav").arg(Media::cacheKey(m_file));
     auto *p = new QProcess(this);
+    Media::makeBackground(p);
     m_proc = p;
     setState(QStringLiteral("preparing"), 0);
     connect(p, &QProcess::finished, this, [this, p](int code) {
@@ -170,6 +171,7 @@ void Transcript::runWhisper()
 {
     const QString outBase = m_wav.left(m_wav.size() - 4);
     auto *p = new QProcess(this);
+    Media::makeBackground(p);
     m_proc = p;
     setState(QStringLiteral("transcribing"), 0);
     connect(p, &QProcess::readyReadStandardError, this, [this, p] {

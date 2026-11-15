@@ -88,6 +88,7 @@ Popup {
     }
     function startOver() { Downloader.reset(); field.text = ""; lookedUp = ""; field.forceActiveFocus() }
 
+    parent: Overlay.overlay
     modal: true
     focus: true
     anchors.centerIn: Overlay.overlay

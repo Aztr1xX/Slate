@@ -11,7 +11,8 @@ Rectangle {
         opacity = 1
         hideTimer.restart()
     }
-    width: row.implicitWidth + 28
+    property real maxWidth: 640
+    width: Math.min(maxWidth, row.implicitWidth + 28)
     height: 36
     radius: 18
     color: "#ee1f2226"
@@ -24,8 +25,14 @@ Rectangle {
         id: row
         anchors.centerIn: parent
         spacing: 14
-        Text { id: label; color: Theme.ink; font.pixelSize: Theme.fontBody; anchors.verticalCenter: parent.verticalCenter }
         Text {
+            id: label
+            width: Math.min(implicitWidth, t.maxWidth - 28 - (reveal.visible ? reveal.implicitWidth + row.spacing : 0))
+            elide: Text.ElideMiddle
+            color: Theme.ink; font.pixelSize: Theme.fontBody; anchors.verticalCenter: parent.verticalCenter
+        }
+        Text {
+            id: reveal
             visible: t.revealPath.length > 0
             text: App.isWindows ? "Show in Explorer" : "Show in folder"
             color: revealMouse.containsMouse ? Theme.accentHover : Theme.accent

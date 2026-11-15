@@ -13,6 +13,7 @@ Popup {
     readonly property bool capturing: capturingId !== ""
     function openAt(p) { page = p; open() }
 
+    parent: Overlay.overlay
     modal: true
     focus: true
     anchors.centerIn: Overlay.overlay
@@ -129,6 +130,13 @@ Popup {
                         onToggled: { App.setSetting("hwdec", checked); dlg.win.mpvItem().setMpvProperty("hwdec", checked ? "auto-safe" : "no") }
                     }
                     Note { text: "Smoother 4K and HEVC playback with less CPU. Turn it off only if a file shows glitches." }
+                    SSwitch {
+                        Layout.fillWidth: true
+                        text: "Lighter video rendering for older computers"
+                        checked: App.setting("lightRendering", false)
+                        onToggled: { App.setSetting("lightRendering", checked); dlg.win.mpvItem().setLightRendering(checked) }
+                    }
+                    Note { text: "Uses simpler scaling so playback stays smooth on older laptops and integrated graphics. The picture is slightly less sharp when it's resized." }
                     Divider {}
                     Text { text: "Skip silences"; color: Theme.ink; font.pixelSize: Theme.fontBody }
                     Note { text: "Ctrl+Shift+K jumps over pauses longer than about a second while playing. Handy for lectures and long talking-head recordings." }

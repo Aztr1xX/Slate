@@ -79,6 +79,7 @@ public:
     Q_INVOKABLE QString formatTimecode(double seconds, double fps) const;
     Q_INVOKABLE QString formatClock(double seconds) const;
     Q_INVOKABLE QString formatBytes(double bytes) const;
+    Q_INVOKABLE double parseTime(const QString &text, double fps) const; // seconds or -1
     Q_INVOKABLE void cancelJob();
 
     // Settings (QSettings, under "prefs/").

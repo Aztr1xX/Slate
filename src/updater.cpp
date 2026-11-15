@@ -99,7 +99,10 @@ void Updater::download()
     QNetworkReply *r = m_net.get(req);
     connect(r, &QNetworkReply::readyRead, this, [r, out] { out->write(r->readAll()); });
     connect(r, &QNetworkReply::downloadProgress, this, [this](qint64 got, qint64 total) {
-        if (total > 0) { m_progress = double(got) / double(total); emit changed(); }
+        if (total <= 0) return;
+        const double p = double(got) / double(total);
+        // one UI update per whole percent is plenty
+        if (int(p * 100) != int(m_progress * 100)) { m_progress = p; emit changed(); } else m_progress = p;
     });
     connect(r, &QNetworkReply::finished, this, [this, r, out] {
         r->deleteLater();

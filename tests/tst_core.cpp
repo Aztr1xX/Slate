@@ -33,6 +33,19 @@ private slots:
         QCOMPARE(Timecode::frameAt(-1, 30), qint64(0));
         QCOMPARE(Timecode::fromSeconds(2.5, 24), QStringLiteral("00:00:02:12"));
     }
+    void parseFlexible()
+    {
+        QCOMPARE(Timecode::parseFlexible(QStringLiteral("90"), 30), 90.0);
+        QCOMPARE(Timecode::parseFlexible(QStringLiteral(" 1:30 "), 30), 90.0);
+        QCOMPARE(Timecode::parseFlexible(QStringLiteral("1:02:03"), 30), 3723.0);
+        QCOMPARE(Timecode::parseFlexible(QStringLiteral("2,5"), 30), 2.5);
+        QCOMPARE(Timecode::parseFlexible(QStringLiteral("00:00:02:15"), 30), 2.5);
+        QCOMPARE(Timecode::parseFlexible(QStringLiteral("f60"), 30), 2.0);
+        QCOMPARE(Timecode::parseFlexible(QStringLiteral("1:75"), 30), -1.0);
+        QCOMPARE(Timecode::parseFlexible(QStringLiteral("abc"), 30), -1.0);
+        QCOMPARE(Timecode::parseFlexible(QString(), 30), -1.0);
+        QCOMPARE(Timecode::parseFlexible(QStringLiteral("00:00:02:40"), 30), -1.0);
+    }
     void parseRoundTrip()
     {
         for (qint64 f : { 0LL, 1LL, 29LL, 30LL, 107999LL }) {

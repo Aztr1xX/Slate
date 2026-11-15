@@ -9,30 +9,21 @@ Item {
     required property var mpv
     required property var win
     property bool overlay: false
-    implicitHeight: 52
+    implicitHeight: 56
 
     function fmt(t) { return mpv.hasVideo && mpv.fps > 0 ? App.formatTimecode(t, mpv.fps) : App.formatClock(t) }
     readonly property bool compact: width < 900
 
     Rectangle { anchors.fill: parent; color: bar.overlay ? "transparent" : Theme.chrome }
 
-    // left: timecode
-    Column {
-        id: tc
+    // left: timecode (click to go to a time)
+    property alias goTo: goToField
+    GoToField {
+        id: goToField
         anchors.left: parent.left; anchors.leftMargin: 14
         anchors.verticalCenter: parent.verticalCenter
-        spacing: 1
-        Text {
-            text: bar.mpv.loaded ? bar.fmt(bar.mpv.position) : (bar.mpv.hasVideo ? "00:00:00:00" : "0:00")
-            color: bar.mpv.loaded ? Theme.ink : Theme.ink3
-            font.pixelSize: 17; font.family: Theme.mono
-        }
-        Text {
-            text: !bar.mpv.loaded ? " " : (bar.mpv.hasVideo && bar.mpv.fps > 0
-                  ? "Frame " + bar.mpv.frame + "  ·  " + App.formatClock(bar.mpv.duration)
-                  : "of " + App.formatClock(bar.mpv.duration))
-            color: Theme.ink3; font.pixelSize: 11; font.family: Theme.mono
-        }
+        mpv: bar.mpv
+        win: bar.win
     }
 
     // centre: transport
@@ -49,18 +40,19 @@ Item {
             Btn { glyph: "out"; tip: "Set Out point"; keys: "O"; enabled: bar.mpv.loaded; active: App.outPoint >= 0; onClicked: bar.win.setOut() }
             Btn { glyph: "marker"; tip: "Add marker"; keys: "M"; enabled: bar.mpv.loaded; onClicked: bar.win.addMarker() }
         }
-        Item { width: bar.compact ? 0 : 14; height: 1 }
+        Rectangle { visible: !bar.compact; width: 1; height: 18; color: Theme.line; anchors.verticalCenter: parent.verticalCenter }
+        Item { width: bar.compact ? 0 : 6; height: 1 }
         Btn { glyph: "frame-back"; tip: "Previous frame"; keys: ","; enabled: bar.mpv.loaded; anchors.verticalCenter: parent.verticalCenter; onClicked: bar.mpv.stepFrame(-1) }
         AbstractButton {
             id: play
             anchors.verticalCenter: parent.verticalCenter
-            width: 40; height: 40
+            width: 42; height: 42
             focusPolicy: Qt.NoFocus
             hoverEnabled: true
             enabled: bar.mpv.loaded
             onClicked: { bar.win.rewindRate = 0; bar.mpv.togglePause() }
             background: Rectangle {
-                radius: 20
+                radius: 21
                 color: play.down ? "#d9dce1" : (play.hovered ? "#ffffff" : Theme.ink)
                 opacity: play.enabled ? 1 : 0.35
             }
@@ -71,10 +63,11 @@ Item {
                     size: 20; color: "#0e0f11"
                 }
             }
-            Tip { visible: play.hovered; text: bar.mpv.paused ? "Play" : "Pause"; keys: "Space" }
+            Tip { visible: play.hovered; text: bar.mpv.paused ? "Play" : "Pause"; keys: "Space  ·  J K L" }
         }
         Btn { glyph: "frame-fwd"; tip: "Next frame"; keys: "."; enabled: bar.mpv.loaded; anchors.verticalCenter: parent.verticalCenter; onClicked: bar.mpv.stepFrame(1) }
-        Item { width: 14; height: 1 }
+        Item { width: 6; height: 1 }
+        Rectangle { width: 1; height: 18; color: Theme.line; anchors.verticalCenter: parent.verticalCenter }
         Btn {
             anchors.verticalCenter: parent.verticalCenter
             glyph: "loop"; tip: "Loop In to Out"; keys: "Ctrl+L"

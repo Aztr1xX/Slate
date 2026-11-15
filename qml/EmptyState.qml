@@ -22,6 +22,23 @@ Item {
             Btn { flat: false; glyph: "download"; text: "Download video"; keys: "Ctrl+D"; tip: "Download from YouTube at the best quality"; implicitHeight: 36; onClicked: es.win.openDownloads() }
         }
 
+        // the handful of keys that make reviewing fast
+        Row {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: 22
+            visible: implicitWidth <= es.width - 48
+            spacing: 16
+            Repeater {
+                model: [["Space", "Play"], [", .", "Step frames"], ["J K L", "Shuttle"], ["M", "Marker"], ["I O", "In and Out"]]
+                delegate: Row {
+                    required property var modelData
+                    spacing: 6
+                    KeyCap { text: modelData[0]; anchors.verticalCenter: parent.verticalCenter }
+                    Text { text: modelData[1]; color: Theme.ink3; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                }
+            }
+        }
+
         RowLayout {
             visible: App.recentFiles.length > 0
             Layout.fillWidth: true

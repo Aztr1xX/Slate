@@ -54,6 +54,9 @@ public:
     // Peak (0..1) and RMS (0..1) per bin; bin i covers [i, i+1) / kBinsPerSecond seconds.
     const QVector<float> &peaks() const { return m_peak; }
     const QVector<float> &rms() const { return m_rms; }
+    float maxPeak() const { return m_maxPeak; }
+    // Analysis runs below normal priority so playback always wins the CPU.
+    static void makeBackground(QProcess *p);
 
     // Start analysing a file (cancels work on the previous one). duration may be 0 if unknown.
     Q_INVOKABLE void analyse(const QString &file, double duration, bool hasVideo);
@@ -94,6 +97,7 @@ private:
     int m_generation = 0;
 
     QVector<float> m_peak, m_rms;
+    float m_maxPeak = 0;
     QByteArray m_pcmTail;
     bool m_waveDone = false;
     double m_waveProgress = 0;

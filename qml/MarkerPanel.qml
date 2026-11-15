@@ -102,11 +102,24 @@ Item {
                         selectByMouse: true
                         selectionColor: Theme.accent
                         background: Rectangle { color: Theme.bg; border.color: Theme.accent; radius: 4 }
-                        onAccepted: { App.markers.setNote(row.index, text); visible = false }
-                        onActiveFocusChanged: if (!activeFocus && visible) { App.markers.setNote(row.index, text); visible = false }
-                        Keys.onEscapePressed: visible = false
+                        // Hide and give the keyboard back to the window, or shortcuts would keep typing into the hidden field.
+                        function done(save) {
+                            if (!visible) return
+                            if (save) App.markers.setNote(row.index, text)
+                            const had = activeFocus
+                            visible = false   // re-entrant calls stop at the check above
+                            focus = false     // or the focus scope would hand focus straight back
+                            if (had) panel.win.releaseKeyboard()
+                        }
+                        onAccepted: done(true)
+                        onActiveFocusChanged: if (!activeFocus) done(true)
+                        Keys.onEscapePressed: done(false)
                     }
-                    Text { text: panel.fmt(row.time); color: Theme.ink3; font.pixelSize: 11; font.family: Theme.mono }
+                    Row {
+                        spacing: 8
+                        Text { text: panel.fmt(row.time); color: Theme.ink3; font.pixelSize: Theme.fontSmall; font.family: Theme.mono }
+                        Text { visible: row.kind !== 0; text: Theme.kindName(row.kind); color: Theme.kindColor(row.kind); font.pixelSize: Theme.fontSmall }
+                    }
                 }
                 Btn {
                     anchors.right: parent.right; anchors.rightMargin: 6
@@ -137,13 +150,44 @@ Item {
                 Text { width: parent.width; horizontalAlignment: Text.AlignHCenter; text: "No markers"; color: Theme.ink2; font.pixelSize: Theme.fontBody }
                 Text {
                     width: parent.width; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
-                    text: "Press M while reviewing to mark good takes, mistakes and notes."
+                    text: "Press M while reviewing to drop a note. Shift+M marks a good take, Alt+M a mistake. They export to DaVinci Resolve."
                     color: Theme.ink3; font.pixelSize: 12
                 }
             }
         }
 
         Rectangle { Layout.fillWidth: true; height: 1; color: Theme.line }
+
+        // In / Out range
+        Rectangle {
+            visible: App.inPoint >= 0 || App.outPoint >= 0
+            Layout.fillWidth: true
+            Layout.leftMargin: 10; Layout.rightMargin: 10; Layout.topMargin: 10
+            implicitHeight: 44
+            radius: Theme.radius
+            color: Theme.raise
+            border.color: Theme.line
+            readonly property bool both: App.inPoint >= 0 && App.outPoint > App.inPoint
+            Column {
+                x: 12; anchors.verticalCenter: parent.verticalCenter
+                spacing: 2
+                Text {
+                    text: (App.inPoint >= 0 ? panel.fmt(App.inPoint) : "Start") + "  →  " + (App.outPoint >= 0 ? panel.fmt(App.outPoint) : "End")
+                    color: Theme.ink; font.pixelSize: 12; font.family: Theme.mono
+                }
+                Text {
+                    text: parent.parent.both ? "Clip length " + App.formatClock(App.outPoint - App.inPoint) + " (" + (App.outPoint - App.inPoint).toFixed(2) + " s)"
+                                             : (App.inPoint >= 0 ? "Press O to set the Out point" : "Press I to set the In point")
+                    color: Theme.ink3; font.pixelSize: Theme.fontSmall
+                }
+            }
+            Btn {
+                anchors.right: parent.right; anchors.rightMargin: 6; anchors.verticalCenter: parent.verticalCenter
+                glyph: "close"; iconSize: 14; implicitWidth: 28; implicitHeight: 28
+                tip: "Clear In and Out"; keys: "X"
+                onClicked: panel.win.clearInOut()
+            }
+        }
 
         // export progress
         RowLayout {

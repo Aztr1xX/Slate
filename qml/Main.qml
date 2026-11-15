@@ -66,10 +66,9 @@ ApplicationWindow {
     function cycleGuide() { toggleGuide() }
     property int sideTab: App.setting("sideTab", 0)
     onSideTabChanged: App.setSetting("sideTab", sideTab)
-    property bool paletteOpen: palette.opened
     readonly property bool isFull: visibility === Window.FullScreen
     property bool mouseRecently: true
-    readonly property bool chromeVisible: !isFull || mouseRecently || !mpv.loaded || mpv.paused
+    readonly property bool chromeVisible: !isFull || mouseRecently || !mpv.loaded || mpv.paused || transport.goTo.editing
     property int rewindRate: 0          // J held: 1, 2, 4, 8
     property bool skipSilence: false
     property double silenceSaved: 0
@@ -81,6 +80,19 @@ ApplicationWindow {
 
     // ----- actions --------------------------------------------------------------
     function toast(msg, path) { toastItem.show(msg, path) }
+    function hud(icon, msg, level) { hudItem.show(icon, msg, level) }
+    // mpv applies these asynchronously, so the feedback shows the value asked for.
+    function setVolume(v) {
+        const nv = Math.max(0, Math.min(100, Math.round(v)))
+        mpv.volume = nv
+        if (mpv.muted && nv > 0) mpv.muted = false
+        hud(nv === 0 ? "mute" : (nv < 50 ? "volume-low" : "volume"), "Volume " + nv + "%", nv / 100)
+    }
+    function toggleMute() {
+        const m = !mpv.muted
+        mpv.muted = m
+        hud(m ? "mute" : "volume", m ? "Muted" : "Volume " + Math.round(mpv.volume) + "%", m ? 0 : mpv.volume / 100)
+    }
     function fmt(t) { return mpv.hasVideo && mpv.fps > 0 ? App.formatTimecode(t, mpv.fps) : App.formatClock(t) }
 
     function openMedia(target) {
@@ -105,18 +117,21 @@ ApplicationWindow {
     function openFileDialog() { fileDialog.open() }
     function openFolderDialog() { folderDialog.open() }
     function openSubtitleDialog() { subDialog.open() }
-    function addMarker() {
+    function addMarker(kind) {
         if (!mpv.loaded) return
-        App.markers.add(mpv.position, 0, "")
-        toast(panelsVisible && sideTab === 0 ? "Marker added. Double-click it to write a note" : "Marker added at " + fmt(mpv.position))
+        kind = kind || 0
+        App.markers.add(mpv.position, kind, "")
+        hud("marker", Theme.kindName(kind) + " at " + fmt(mpv.position))
+        if (!markerHintShown && panelsVisible && sideTab === 0) { markerHintShown = true; toast("Double-click a marker in the list to write a note") }
     }
-    function setIn() { if (mpv.loaded) { App.inPoint = mpv.position; syncLoop() } }
-    function setOut() { if (mpv.loaded) { App.outPoint = mpv.position; syncLoop() } }
-    function clearInOut() { App.clearInOut(); mpv.setLoop(-1, -1); toast("In and Out cleared") }
+    property bool markerHintShown: false
+    function setIn() { if (mpv.loaded) { App.inPoint = mpv.position; syncLoop(); hud("in", "In " + fmt(App.inPoint)) } }
+    function setOut() { if (mpv.loaded) { App.outPoint = mpv.position; syncLoop(); hud("out", "Out " + fmt(App.outPoint)) } }
+    function clearInOut() { App.clearInOut(); mpv.setLoop(-1, -1); hud("close", "In and Out cleared") }
     function syncLoop() { if (mpv.loopA >= 0) { if (App.inPoint >= 0 && App.outPoint > App.inPoint) mpv.setLoop(App.inPoint, App.outPoint); else mpv.setLoop(-1, -1) } }
     function toggleLoop() {
-        if (mpv.loopA >= 0) { mpv.setLoop(-1, -1); toast("Loop off"); return }
-        if (App.inPoint >= 0 && App.outPoint > App.inPoint) { mpv.setLoop(App.inPoint, App.outPoint); toast("Looping In to Out") }
+        if (mpv.loopA >= 0) { mpv.setLoop(-1, -1); hud("loop", "Loop off"); return }
+        if (App.inPoint >= 0 && App.outPoint > App.inPoint) { mpv.setLoop(App.inPoint, App.outPoint); hud("loop", "Looping In to Out") }
         else toast("Set In (I) and Out (O) first")
     }
     function cycleSpeed(dir) {
@@ -124,9 +139,9 @@ ApplicationWindow {
         if (i < 0) i = speeds.indexOf(1)
         i = Math.max(0, Math.min(speeds.length - 1, i + dir))
         mpv.speed = speeds[i]
-        toast("Speed " + speeds[i] + "×")
+        hud("speed", "Speed " + speeds[i] + "×")
     }
-    function resetSpeed() { mpv.speed = 1; toast("Speed 1×") }
+    function resetSpeed() { mpv.speed = 1; hud("speed", "Speed 1×") }
     function shuttle(key) {
         // J / K / L like editing apps. Repeated L plays faster; J rewinds in steps.
         if (key === "k") { rewindRate = 0; mpv.paused = true; mpv.speed = 1; return }
@@ -134,17 +149,25 @@ ApplicationWindow {
             rewindRate = 0
             if (mpv.paused) { mpv.speed = 1; mpv.paused = false }
             else mpv.speed = Math.min(8, mpv.speed >= 1 ? mpv.speed * 2 : 1)
-            if (mpv.speed !== 1) toast("Playing " + mpv.speed + "×")
+            if (mpv.speed !== 1) hud("speed", "Playing " + mpv.speed + "×")
             return
         }
         mpv.paused = true
         rewindRate = rewindRate === 0 ? 1 : Math.min(8, rewindRate * 2)
-        toast("Rewinding " + rewindRate + "×. K stops")
+        hud("speed", "Rewinding " + rewindRate + "×  ·  K stops")
     }
     function grabFrame() {
         if (!mpv.loaded || !mpv.hasVideo) { toast("No video frame to save"); return }
         const p = App.frameGrabPath(mpv.frame)
         if (mpv.screenshot(p)) toast("Saved frame " + mpv.frame, p); else toast("Couldn't save the frame")
+    }
+    // Esc steps back out of whatever is layered on: full screen, comparison, zoom, crop guide.
+    readonly property bool escapable: isFull || compareFile !== "" || zoomScale > 1.001 || guideOn
+    function stepBack() {
+        if (isFull) toggleFullscreen()
+        else if (compareFile !== "") stopCompare()
+        else if (zoomScale > 1.001) setZoom(1, 0, 0)
+        else if (guideOn) toggleGuide()
     }
     function toggleFullscreen() {
         if (isFull) visibility = wasMaximized ? Window.Maximized : Window.Windowed
@@ -159,7 +182,7 @@ ApplicationWindow {
     function rate(n) {
         if (!App.currentFile) return
         App.setRating(App.currentFile, n)
-        toast(n > 0 ? "Rated " + "★".repeat(n) : "Rating cleared")
+        hud(n > 0 ? "star-filled" : "star", n > 0 ? "★".repeat(n) + "☆".repeat(5 - n) : "Rating cleared")
     }
     function toggleSkipSilence() {
         skipSilence = !skipSilence
@@ -173,25 +196,44 @@ ApplicationWindow {
         toast("Comparing with " + f.split(/[\\/]/).pop() + ". Esc ends the comparison")
     }
     function stopCompare() { compareFile = "" }
-    function seekRelative(s) { mpv.seekBy(s, Math.abs(s) < 2) }
+    function seekRelative(s) {
+        if (!mpv.loaded) return
+        mpv.seekBy(s, Math.abs(s) < 2)
+        hud(s > 0 ? "frame-fwd" : "frame-back", (s > 0 ? "+" : "−") + Math.abs(s) + " s")
+    }
     function mpvItem() { return mpv }
-    // Used by the built-in self-test.
-    function openPalette() { if (!palette.opened) palette.open() }
-    function closePalette() { palette.close() }
-    function openSettings(page) { settingsDialog.openAt(page) }
-    function closeSettings() { settingsDialog.close() }
-    property bool settingsOpen: settingsDialog.opened
-    function openDownloads() { if (!downloadDialog.opened) downloadDialog.open() }
-    function closeDownloads() { downloadDialog.close() }
-    property bool downloadsOpen: downloadDialog.opened
+    // Takes keyboard focus away from any text field, so single-key shortcuts work again.
+    function releaseKeyboard() { keySink.forceActiveFocus() }
+    Item { id: keySink }
+    // Names the lazily built panels and dialogs use (their own "mpv" and "win" properties would shadow the ids).
+    property alias player: mpv
+    readonly property var mainWindow: win
+    // Dialogs are created the first time they're needed, so Slate starts faster.
+    readonly property bool paletteOpen: paletteLoader.item ? paletteLoader.item.opened : false
+    readonly property bool settingsOpen: settingsLoader.item ? settingsLoader.item.opened : false
+    readonly property bool downloadsOpen: downloadLoader.item ? downloadLoader.item.opened : false
+    readonly property bool urlOpen: urlLoader.item ? urlLoader.item.opened : false
+    readonly property bool dialogOpen: paletteOpen || settingsOpen || downloadsOpen || urlOpen
+    function openPalette() { paletteLoader.active = true; if (!paletteLoader.item.opened) paletteLoader.item.open() }
+    function closePalette() { if (paletteLoader.item) paletteLoader.item.close() }
+    function openSettings(page) { settingsLoader.active = true; settingsLoader.item.openAt(page) }
+    function closeSettings() { if (settingsLoader.item) settingsLoader.item.close() }
+    function openDownloads(url) {
+        downloadLoader.active = true
+        if (url) downloadLoader.item.presetUrl = url
+        if (!downloadLoader.item.opened) downloadLoader.item.open()
+    }
+    function closeDownloads() { if (downloadLoader.item) downloadLoader.item.close() }
+    function openUrlDialog() { urlLoader.active = true; urlLoader.item.open() }
+    function beginGoTo() { if (!mpv.loaded) return; if (isFull) mouseRecently = true; transport.goTo.begin() }
 
     // ----- keyboard -------------------------------------------------------------
     // Every action, in the order the shortcut list and command palette show them.
     readonly property var actionList: [
         { id: "open", category: "File", name: "Open file…", keys: ["Ctrl+O"], run: openFileDialog },
         { id: "openFolder", category: "File", name: "Open folder…", keys: ["Ctrl+Shift+O"], run: openFolderDialog },
-        { id: "openUrl", category: "File", name: "Open URL…", keys: ["Ctrl+U"], run: () => urlDialog.open() },
-        { id: "download", category: "File", name: "Download from YouTube…", keys: ["Ctrl+D"], run: openDownloads },
+        { id: "openUrl", category: "File", name: "Open URL…", keys: ["Ctrl+U"], run: openUrlDialog },
+        { id: "download", category: "File", name: "Download from YouTube…", keys: ["Ctrl+D"], run: () => openDownloads() },
         { id: "loadSubs", category: "File", name: "Load subtitle file…", keys: [], run: openSubtitleDialog },
         { id: "nextFile", category: "File", name: "Next clip in folder", keys: ["PgDown"], run: () => openNext(1) },
         { id: "prevFile", category: "File", name: "Previous clip in folder", keys: ["PgUp"], run: () => openNext(-1) },
@@ -205,6 +247,7 @@ ApplicationWindow {
         { id: "back1", category: "Playback", name: "Back 1 second", keys: ["Shift+Left"], run: () => seekRelative(-1) },
         { id: "start", category: "Playback", name: "Go to start", keys: ["Home"], run: () => mpv.seekTo(0) },
         { id: "end", category: "Playback", name: "Go to end", keys: ["End"], run: () => mpv.seekTo(mpv.duration) },
+        { id: "goTo", category: "Playback", name: "Go to a time or frame…", keys: ["Ctrl+G"], run: beginGoTo },
         { id: "shuttleJ", category: "Playback", name: "Rewind (J)", keys: ["J"], run: () => shuttle("j") },
         { id: "shuttleK", category: "Playback", name: "Stop (K)", keys: ["K"], run: () => shuttle("k") },
         { id: "shuttleL", category: "Playback", name: "Play, faster each press (L)", keys: ["L"], run: () => shuttle("l") },
@@ -212,11 +255,13 @@ ApplicationWindow {
         { id: "slower", category: "Playback", name: "Slower", keys: ["["], run: () => cycleSpeed(-1) },
         { id: "normalSpeed", category: "Playback", name: "Normal speed", keys: ["="], run: resetSpeed },
         { id: "skipSilence", category: "Playback", name: "Skip silences", keys: ["Ctrl+Shift+K"], run: toggleSkipSilence },
-        { id: "volUp", category: "Playback", name: "Volume up", keys: ["Up"], run: () => mpv.volume = Math.min(100, mpv.volume + 5) },
-        { id: "volDown", category: "Playback", name: "Volume down", keys: ["Down"], run: () => mpv.volume = Math.max(0, mpv.volume - 5) },
-        { id: "mute", category: "Playback", name: "Mute", keys: ["Ctrl+M"], run: () => mpv.muted = !mpv.muted },
+        { id: "volUp", category: "Playback", name: "Volume up", keys: ["Up"], run: () => setVolume(mpv.volume + 5) },
+        { id: "volDown", category: "Playback", name: "Volume down", keys: ["Down"], run: () => setVolume(mpv.volume - 5) },
+        { id: "mute", category: "Playback", name: "Mute", keys: ["Ctrl+M"], run: toggleMute },
 
-        { id: "marker", category: "Review", name: "Add marker", keys: ["M"], run: addMarker },
+        { id: "marker", category: "Review", name: "Add marker (note)", keys: ["M"], run: () => addMarker(0) },
+        { id: "markerGood", category: "Review", name: "Mark a good take", keys: ["Shift+M"], run: () => addMarker(1) },
+        { id: "markerBad", category: "Review", name: "Mark a mistake", keys: ["Alt+M"], run: () => addMarker(2) },
         { id: "nextMarker", category: "Review", name: "Next marker", keys: ["Ctrl+Right"], run: () => jumpMarker(1) },
         { id: "prevMarker", category: "Review", name: "Previous marker", keys: ["Ctrl+Left"], run: () => jumpMarker(-1) },
         { id: "in", category: "Review", name: "Set In point", keys: ["I"], run: setIn },
@@ -255,9 +300,9 @@ ApplicationWindow {
         { id: "tabTranscript", category: "View", name: "Show transcript", keys: ["Alt+4"], run: () => showTab(3) },
         { id: "tabScopes", category: "View", name: "Show video scopes", keys: ["Alt+5"], run: () => showTab(4) },
         { id: "tabAudio", category: "View", name: "Show audio levels", keys: ["Alt+6"], run: () => showTab(5) },
-        { id: "palette", category: "View", name: "Search actions", keys: ["Ctrl+K"], run: () => palette.open() },
-        { id: "shortcuts", category: "View", name: "Keyboard shortcuts", keys: ["?"], run: () => settingsDialog.openAt(4) },
-        { id: "settings", category: "View", name: "Settings", keys: ["Ctrl+,"], run: () => settingsDialog.openAt(0) }
+        { id: "palette", category: "View", name: "Search actions", keys: ["Ctrl+K"], run: openPalette },
+        { id: "shortcuts", category: "View", name: "Keyboard shortcuts", keys: ["?"], run: () => openSettings(4) },
+        { id: "settings", category: "View", name: "Settings", keys: ["Ctrl+,"], run: () => openSettings(0) }
     ]
     function keysFor(a) {
         keymapRevision
@@ -273,7 +318,7 @@ ApplicationWindow {
             required property var modelData
             sequences: win.keysFor(modelData)
             context: Qt.WindowShortcut
-            enabled: !palette.opened && !settingsDialog.opened && !urlDialog.opened && !downloadDialog.opened
+            enabled: !win.dialogOpen
             autoRepeat: ["frameNext", "framePrev", "fwd5", "back5", "fwd1", "back1", "volUp", "volDown"].indexOf(modelData.id) >= 0
             onActivated: modelData.run()
         }
@@ -285,8 +330,8 @@ ApplicationWindow {
     Shortcut { sequence: "Media Previous"; context: Qt.WindowShortcut; onActivated: win.openNext(-1) }
     Shortcut {
         sequence: "Escape"
-        enabled: !palette.opened && !settingsDialog.opened && (win.isFull || win.compareFile !== "")
-        onActivated: { if (win.isFull) win.toggleFullscreen(); else win.stopCompare() }
+        enabled: !win.dialogOpen && win.escapable && !transport.goTo.editing
+        onActivated: win.stepBack()
     }
 
     Timer { // J rewind
@@ -341,8 +386,8 @@ ApplicationWindow {
     Connections {
         target: Downloader
         function onFinished(ok, file, message) {
-            if (!ok) { if (!downloadDialog.opened) win.toast(message); return }
-            if (App.setting("dl/openWhenDone", true)) { downloadDialog.close(); win.openMedia(file) }
+            if (!ok) { if (!win.downloadsOpen) win.toast(message); return }
+            if (App.setting("dl/openWhenDone", true)) { win.closeDownloads(); win.openMedia(file) }
             win.toast(message, file)
         }
     }
@@ -362,6 +407,7 @@ ApplicationWindow {
         }
         if (App.setting("rememberVolume", true)) mpv.volume = App.setting("volume", 100)
         mpv.setMpvProperty("hwdec", App.setting("hwdec", true) ? "auto-safe" : "no")
+        if (App.setting("lightRendering", false)) mpv.setLightRendering(true)
         Transcript.model = App.setting("whisperModel", "base.en")
     }
     // Look for a newer build a few seconds after start, and fetch it in the background.
@@ -417,15 +463,17 @@ ApplicationWindow {
                 Image { source: "qrc:/Slate/assets/slate-small-64.png"; sourceSize: Qt.size(22, 22); Layout.preferredWidth: 22; Layout.preferredHeight: 22 }
                 Column {
                     Layout.fillWidth: true
-                    Layout.maximumWidth: 640
+                    Layout.maximumWidth: Math.min(560, Math.max(titleText.implicitWidth, pathText.implicitWidth) + 1)
                     spacing: 1
                     Text {
+                        id: titleText
                         width: parent.width
                         text: App.currentName || "Slate"
                         color: Theme.ink; font.pixelSize: Theme.fontBody; font.weight: Font.DemiBold
                         elide: Text.ElideMiddle
                     }
                     Text {
+                        id: pathText
                         visible: App.currentFile !== ""
                         width: parent.width
                         text: App.currentFile.substring(0, App.currentFile.length - App.currentName.length).replace(/[\\/]$/, "")
@@ -433,6 +481,31 @@ ApplicationWindow {
                         elide: Text.ElideMiddle
                     }
                 }
+                // the current clip's rating: click a star, or press 1 to 5
+                Row {
+                    visible: App.currentFile !== "" && App.queue.length > 0
+                    Layout.leftMargin: 6
+                    spacing: 0
+                    readonly property int stars: { App.ratingsRevision; return App.rating(App.currentFile) }
+                    Repeater {
+                        model: 5
+                        delegate: Item {
+                            id: hs
+                            required property int index
+                            width: 18; height: 22
+                            readonly property bool on: index < parent.stars
+                            Icon {
+                                anchors.centerIn: parent
+                                name: hs.on ? "star-filled" : "star"; size: 14
+                                color: hs.on ? Theme.note : (starHov.hovered ? Theme.ink3 : Theme.ink4)
+                            }
+                            HoverHandler { id: starHov; cursorShape: Qt.PointingHandCursor }
+                            TapHandler { onTapped: win.rate(hs.parent.stars === hs.index + 1 ? 0 : hs.index + 1) }
+                            Tip { visible: starHov.hovered; text: "Rate " + (hs.index + 1) + (hs.index ? " stars" : " star"); keys: String(hs.index + 1) }
+                        }
+                    }
+                }
+                Rectangle { visible: App.queue.length > 1; Layout.preferredWidth: 1; Layout.preferredHeight: 18; color: Theme.line }
                 Row {
                     visible: App.queue.length > 1
                     spacing: 0
@@ -469,13 +542,8 @@ ApplicationWindow {
                     border.color: Theme.line
                     Icon { x: 9; anchors.verticalCenter: parent.verticalCenter; name: "search"; size: 15; color: Theme.ink3 }
                     Text { x: 32; anchors.verticalCenter: parent.verticalCenter; text: "Search actions"; color: Theme.ink3; font.pixelSize: 12 }
-                    Rectangle {
-                        anchors.right: parent.right; anchors.rightMargin: 6; anchors.verticalCenter: parent.verticalCenter
-                        width: kk.implicitWidth + 10; height: 18; radius: 4
-                        color: Theme.bg; border.color: Theme.lineStrong
-                        Text { id: kk; anchors.centerIn: parent; text: "Ctrl K"; color: Theme.ink3; font.pixelSize: 10 }
-                    }
-                    MouseArea { id: sbMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: palette.open() }
+                    KeyCap { anchors.right: parent.right; anchors.rightMargin: 6; anchors.verticalCenter: parent.verticalCenter; text: "Ctrl K" }
+                    MouseArea { id: sbMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: win.openPalette() }
                 }
                 // download chip: shows progress while a video downloads in the background
                 Btn {
@@ -489,7 +557,7 @@ ApplicationWindow {
                 Btn { glyph: "open"; tip: "Open file"; keys: "Ctrl+O"; onClicked: fileDialog.open() }
                 Btn { visible: !Downloader.busy; glyph: "download"; tip: "Download from YouTube"; keys: "Ctrl+D"; onClicked: win.openDownloads() }
                 Btn { glyph: "sidebar"; tip: win.panelsVisible ? "Hide side panel" : "Show side panel"; keys: "H"; active: win.panelsVisible; onClicked: win.togglePanels() }
-                Btn { glyph: "settings"; tip: "Settings"; keys: "Ctrl+,"; onClicked: settingsDialog.openAt(0) }
+                Btn { glyph: "settings"; tip: "Settings"; keys: "Ctrl+,"; onClicked: win.openSettings(0) }
             }
         }
 
@@ -578,30 +646,53 @@ ApplicationWindow {
                     id: videoMouse
                     anchors.fill: parent
                     hoverEnabled: true
-                    acceptedButtons: Qt.LeftButton
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
                     enabled: mpv.loaded
                     property point pressAt
                     property real pressPanX: 0
                     property real pressPanY: 0
                     property bool dragged: false
-                    onPressed: (m) => { pressAt = Qt.point(m.x, m.y); pressPanX = win.panX; pressPanY = win.panY; dragged = false }
+                    onPressed: (m) => {
+                        win.releaseKeyboard()
+                        if (m.button === Qt.RightButton) { videoMenu.popup(); return }
+                        pressAt = Qt.point(m.x, m.y); pressPanX = win.panX; pressPanY = win.panY; dragged = false
+                    }
                     onPositionChanged: (m) => {
                         win.mouseRecently = true; idleTimer.restart()
-                        if (pressed && win.zoomScale > 1.001) {
+                        if (pressed && (pressedButtons & Qt.LeftButton) && win.zoomScale > 1.001) {
                             if (Math.abs(m.x - pressAt.x) + Math.abs(m.y - pressAt.y) > 4) dragged = true
                             const r = win.pictureRect()
                             win.setZoom(win.zoomScale, pressPanX + (m.x - pressAt.x) / (r.width * win.zoomScale), pressPanY + (m.y - pressAt.y) / (r.height * win.zoomScale))
                         }
                     }
-                    onClicked: if (!dragged) mpv.togglePause()
-                    onDoubleClicked: { mpv.togglePause(); win.toggleFullscreen() }
+                    onClicked: (m) => { if (m.button === Qt.LeftButton && !dragged) mpv.togglePause() }
+                    onDoubleClicked: (m) => { if (m.button === Qt.LeftButton) { mpv.togglePause(); win.toggleFullscreen() } }
                     onWheel: (w) => {
                         const up = (w.angleDelta.y || w.angleDelta.x) > 0
                         if ((w.modifiers & Qt.ControlModifier) && mpv.hasVideo) win.zoomAt(win.zoomScale * (up ? 1.25 : 0.8), w.x, w.y)
-                        else mpv.volume = Math.max(0, Math.min(100, mpv.volume + (up ? 5 : -5)))
+                        else win.setVolume(mpv.volume + (up ? 5 : -5))
                     }
                     cursorShape: win.isFull && !win.mouseRecently ? Qt.BlankCursor
                                  : (win.zoomScale > 1.001 ? (pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor) : Qt.ArrowCursor)
+                }
+                SMenu {
+                    id: videoMenu
+                    implicitWidth: 270
+                    SMenuItem { text: mpv.paused ? "Play" : "Pause"; glyph: mpv.paused ? "play" : "pause"; keys: "Space"; onTriggered: mpv.togglePause() }
+                    SMenuItem { text: "Add marker"; glyph: "marker"; keys: "M"; onTriggered: win.addMarker(0) }
+                    SMenuItem { text: "Mark a good take"; glyph: "check"; keys: "Shift+M"; onTriggered: win.addMarker(1) }
+                    SMenuItem { text: "Set In here"; glyph: "in"; keys: "I"; onTriggered: win.setIn() }
+                    SMenuItem { text: "Set Out here"; glyph: "out"; keys: "O"; onTriggered: win.setOut() }
+                    MenuSeparator { contentItem: Rectangle { implicitHeight: 1; color: Theme.line } }
+                    SMenuItem { text: "Copy frame"; glyph: "copy-frame"; keys: "Ctrl+C"; enabled: mpv.hasVideo; onTriggered: win.toast(mpv.copyFrame() ? "Frame copied. Paste it anywhere" : "Couldn't copy this frame") }
+                    SMenuItem { text: "Save frame as PNG"; glyph: "camera"; keys: "Ctrl+Shift+S"; enabled: mpv.hasVideo; onTriggered: win.grabFrame() }
+                    SMenuItem { text: "Go to a time…"; glyph: "search"; keys: "Ctrl+G"; onTriggered: win.beginGoTo() }
+                    MenuSeparator { contentItem: Rectangle { implicitHeight: 1; color: Theme.line } }
+                    SMenuItem { text: win.zoomScale > 1.001 ? "Fit picture" : "Zoom to 200%"; glyph: "zoom"; keys: "Z"; enabled: mpv.hasVideo; onTriggered: win.toggleZoom() }
+                    SMenuItem { text: "Crop guide"; glyph: "crop"; keys: "G"; checkable: true; checked: win.guideOn; enabled: mpv.hasVideo; onTriggered: win.toggleGuide() }
+                    SMenuItem { text: win.isFull ? "Exit full screen" : "Full screen"; glyph: win.isFull ? "fullscreen-exit" : "fullscreen"; keys: "F"; onTriggered: win.toggleFullscreen() }
+                    MenuSeparator { contentItem: Rectangle { implicitHeight: 1; color: Theme.line } }
+                    SMenuItem { text: App.isWindows ? "Show in Explorer" : "Show in folder"; glyph: "open"; enabled: App.currentFile !== ""; onTriggered: App.revealInFolder(App.currentFile) }
                 }
                 CropGuide {
                     x: mpv.x; y: mpv.y; width: mpv.width; height: mpv.height
@@ -654,8 +745,16 @@ ApplicationWindow {
                     HoverHandler { onHoveredChanged: if (hovered) { win.mouseRecently = true; idleTimer.stop() } else idleTimer.restart() }
                 }
 
+                Hud {
+                    id: hudItem
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    y: win.isFull ? 40 : 28
+                    z: 20
+                }
                 Toast {
                     id: toastItem
+                    objectName: "toast"
+                    maxWidth: Math.min(640, parent.width - 40)
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: win.isFull ? 160 : 20
@@ -665,11 +764,26 @@ ApplicationWindow {
             // ---- side panel ----
             Rectangle {
                 id: side
-                Layout.preferredWidth: 340
+                property real panelWidth: Math.max(300, Math.min(560, App.setting("panelWidth", 344)))
+                Layout.preferredWidth: Math.min(panelWidth, win.width - 480)
                 Layout.fillHeight: true
                 visible: win.panelsVisible && !win.isFull && App.currentFile !== ""
                 color: Theme.panel
-                Rectangle { width: 1; height: parent.height; color: Theme.line }
+                Rectangle { width: 1; height: parent.height; color: resizer.containsMouse || resizer.pressed ? Theme.accent : Theme.line }
+                // drag the left edge to resize
+                MouseArea {
+                    id: resizer
+                    x: -3; width: 7; height: parent.height
+                    z: 5
+                    hoverEnabled: true
+                    cursorShape: Qt.SizeHorCursor
+                    property real startX: 0
+                    property real startW: 0
+                    onPressed: (m) => { startX = mapToItem(null, m.x, 0).x; startW = side.width }
+                    onPositionChanged: (m) => { if (pressed) side.panelWidth = Math.max(300, Math.min(560, startW - (mapToItem(null, m.x, 0).x - startX))) }
+                    onReleased: App.setSetting("panelWidth", Math.round(side.panelWidth))
+                    onDoubleClicked: { side.panelWidth = 344; App.setSetting("panelWidth", 344) }
+                }
 
                 ColumnLayout {
                     anchors.fill: parent
@@ -677,43 +791,62 @@ ApplicationWindow {
                     spacing: 0
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 44
+                        Layout.preferredHeight: 54
                         color: Theme.panel
                         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.line }
                         Row {
-                            anchors.centerIn: parent
-                            spacing: 4
+                            id: tabRow
+                            anchors.fill: parent
+                            anchors.leftMargin: 6; anchors.rightMargin: 6; anchors.topMargin: 5; anchors.bottomMargin: 6
+                            spacing: 2
                             Repeater {
                                 model: [
-                                    { icon: "marker", tip: "Markers", keys: "Alt+1", badge: App.markers.count },
-                                    { icon: "list", tip: "Clips in this folder", keys: "Alt+2", badge: App.queue.length > 1 ? App.queue.length : 0 },
-                                    { icon: "info", tip: "Media info", keys: "Alt+3", badge: Media.probe.vfr === true ? -1 : 0 },
-                                    { icon: "transcript", tip: "Transcript", keys: "Alt+4", badge: 0 },
-                                    { icon: "scope", tip: "Video scopes", keys: "Alt+5", badge: 0 },
-                                    { icon: "audio-track", tip: "Audio levels", keys: "Alt+6", badge: 0 }
+                                    { icon: "marker", label: "Markers", tip: "Markers and exports", keys: "Alt+1", badge: App.markers.count },
+                                    { icon: "list", label: "Clips", tip: "Clips in this folder", keys: "Alt+2", badge: App.queue.length > 1 ? App.queue.length : 0 },
+                                    { icon: "info", label: "Info", tip: "Media info", keys: "Alt+3", badge: Media.probe.vfr === true ? -1 : 0 },
+                                    { icon: "transcript", label: "Transcript", tip: "Transcript", keys: "Alt+4", badge: 0 },
+                                    { icon: "scope", label: "Scopes", tip: "Video scopes", keys: "Alt+5", badge: 0 },
+                                    { icon: "audio-track", label: "Audio", tip: "Audio levels", keys: "Alt+6", badge: 0 }
                                 ]
                                 delegate: AbstractButton {
                                     id: tabBtn
                                     required property var modelData
                                     required property int index
-                                    width: 50; height: 34
+                                    readonly property bool current: win.sideTab === index
+                                    width: (tabRow.width - 5 * tabRow.spacing) / 6; height: tabRow.height
                                     focusPolicy: Qt.NoFocus
                                     hoverEnabled: true
                                     onClicked: win.sideTab = index
                                     background: Rectangle {
                                         radius: Theme.radius
-                                        color: win.sideTab === tabBtn.index ? Theme.hover : (tabBtn.hovered ? Theme.raise : "transparent")
+                                        color: tabBtn.current ? Theme.hover : (tabBtn.hovered ? Theme.raise : "transparent")
+                                        Rectangle {
+                                            visible: tabBtn.current
+                                            anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom
+                                            width: 18; height: 2; radius: 1; color: Theme.accent
+                                        }
                                     }
                                     contentItem: Item {
-                                        Icon { anchors.centerIn: parent; name: tabBtn.modelData.icon; size: 18; color: win.sideTab === tabBtn.index ? Theme.ink : Theme.ink2 }
+                                        Column {
+                                            anchors.centerIn: parent
+                                            spacing: 3
+                                            Icon { anchors.horizontalCenter: parent.horizontalCenter; name: tabBtn.modelData.icon; size: 17; color: tabBtn.current ? Theme.ink : Theme.ink2 }
+                                            Text {
+                                                anchors.horizontalCenter: parent.horizontalCenter
+                                                width: Math.min(implicitWidth, tabBtn.width - 4); elide: Text.ElideRight
+                                                text: tabBtn.modelData.label
+                                                color: tabBtn.current ? Theme.ink : Theme.ink3
+                                                font.pixelSize: Theme.fontTiny; font.weight: tabBtn.current ? Font.DemiBold : Font.Normal
+                                            }
+                                        }
                                         Rectangle {
                                             visible: tabBtn.modelData.badge !== 0
-                                            x: parent.width / 2 + 5; y: 2
+                                            x: parent.width / 2 + 5; y: 1
                                             width: tabBtn.modelData.badge < 0 ? 7 : Math.max(16, bl.implicitWidth + 8)
                                             height: tabBtn.modelData.badge < 0 ? 7 : 15
                                             radius: height / 2
                                             color: tabBtn.modelData.badge < 0 ? Theme.warn : Theme.press
-                                            Text { id: bl; visible: tabBtn.modelData.badge > 0; anchors.centerIn: parent; text: tabBtn.modelData.badge; color: Theme.ink2; font.pixelSize: 9 }
+                                            Text { id: bl; visible: tabBtn.modelData.badge > 0; anchors.centerIn: parent; text: tabBtn.modelData.badge; color: Theme.ink; font.pixelSize: Theme.fontTiny }
                                         }
                                     }
                                     Tip { visible: tabBtn.hovered; text: tabBtn.modelData.tip; keys: tabBtn.modelData.keys }
@@ -721,16 +854,25 @@ ApplicationWindow {
                             }
                         }
                     }
+                    // Each tab is built the first time it's shown, then kept.
                     StackLayout {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         currentIndex: win.sideTab
-                        MarkerPanel { mpv: mpv; win: win }
-                        ClipsPanel { win: win }
-                        InfoPanel { mpv: mpv }
-                        TranscriptPanel { mpv: mpv; win: win }
-                        ScopesPanel { mpv: mpv; shown: side.visible && win.sideTab === 4 }
-                        AudioPanel { mpv: mpv; shown: side.visible && win.sideTab === 5 }
+                        component Tab: Loader {
+                            required property int tab
+                            property bool seen: false
+                            readonly property bool current: win.sideTab === tab && side.visible
+                            onCurrentChanged: if (current) seen = true
+                            Component.onCompleted: if (current) seen = true
+                            active: seen
+                        }
+                        Tab { tab: 0; sourceComponent: MarkerPanel { mpv: player; win: mainWindow } }
+                        Tab { tab: 1; sourceComponent: ClipsPanel { win: mainWindow } }
+                        Tab { tab: 2; sourceComponent: InfoPanel { mpv: player } }
+                        Tab { tab: 3; sourceComponent: TranscriptPanel { mpv: player; win: mainWindow } }
+                        Tab { tab: 4; sourceComponent: ScopesPanel { mpv: player; shown: side.visible && win.sideTab === 4 } }
+                        Tab { tab: 5; sourceComponent: AudioPanel { mpv: player; shown: side.visible && win.sideTab === 5 } }
                     }
                 }
             }
@@ -755,11 +897,18 @@ ApplicationWindow {
         TransportBar { id: transport; width: parent.width; mpv: mpv; win: win; overlay: win.isFull }
     }
 
-    CommandPalette {
-        id: palette
-        actions: win.actionList.map(a => ({ name: a.name, category: a.category, keys: win.keysLabel(a), run: a.run }))
+    Loader {
+        id: paletteLoader
+        active: false
+        sourceComponent: CommandPalette {
+            actions: win.actionList.map(a => ({ id: a.id, name: a.name, category: a.category, keys: win.keysLabel(a), run: a.run }))
+        }
     }
-    SettingsDialog { id: settingsDialog; win: win }
-    OpenUrlDialog { id: urlDialog; onAccepted: (u) => win.openMedia(u); onDownload: (u) => { downloadDialog.presetUrl = u; win.openDownloads() } }
-    DownloadDialog { id: downloadDialog; objectName: "downloadDialog"; win: win }
+    Loader { id: settingsLoader; active: false; sourceComponent: SettingsDialog { win: mainWindow } }
+    Loader {
+        id: urlLoader
+        active: false
+        sourceComponent: OpenUrlDialog { onAccepted: (u) => win.openMedia(u); onDownload: (u) => win.openDownloads(u) }
+    }
+    Loader { id: downloadLoader; active: false; sourceComponent: DownloadDialog { objectName: "downloadDialog"; win: mainWindow } }
 }
