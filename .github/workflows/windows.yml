@@ -118,6 +118,11 @@ jobs:
           Compress-Archive -Path dist\* -DestinationPath installer\Slate-portable.zip
           Get-ChildItem installer
 
+      - name: Downloader test results
+        if: always()
+        shell: pwsh
+        run: if (Test-Path selftest.png.log) { Get-Content selftest.png.log | Select-String -Pattern "download|SELFTEST" }
+
       - name: Upload installer
         if: always()
         uses: actions/upload-artifact@v5
