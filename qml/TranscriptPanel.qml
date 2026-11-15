@@ -80,6 +80,7 @@ Item {
             model: panel.lines
             spacing: 0
             boundsBehavior: Flickable.StopAtBounds
+            WheelScroll {}
             ScrollBar.vertical: SScrollBar {}
             property bool follow: true
             onMovementStarted: follow = false

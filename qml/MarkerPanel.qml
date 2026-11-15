@@ -30,6 +30,7 @@ Item {
             clip: true
             model: App.markers
             boundsBehavior: Flickable.StopAtBounds
+            WheelScroll {}
             ScrollBar.vertical: SScrollBar {}
             readonly property int playingRow: { App.markers.count; return App.markers.rowNear(panel.mpv.position, panel.mpv.fps > 0 ? 0.5 / panel.mpv.fps : 0.02) }
 
