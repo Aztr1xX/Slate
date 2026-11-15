@@ -73,4 +73,35 @@ qint64 parse(const QString &tc, double fps)
     return ((h * 60 + m) * 60 + s) * n + f;
 }
 
+double parseFlexible(const QString &text, double fps)
+{
+    QString t = text.trimmed();
+    t.replace(QLatin1Char(','), QLatin1Char('.'));
+    t.replace(QLatin1Char(';'), QLatin1Char(':'));   // drop-frame style separators
+    if (t.isEmpty())
+        return -1;
+    if (t.startsWith(QLatin1Char('f'), Qt::CaseInsensitive) || t.startsWith(QLatin1Char('#'))) {
+        bool ok = false;
+        const qint64 f = t.mid(1).trimmed().toLongLong(&ok);
+        return ok && f >= 0 ? secondsAt(f, fps > 0 ? fps : 30) : -1;
+    }
+    const QStringList p = t.split(QLatin1Char(':'));
+    if (p.size() > 4)
+        return -1;
+    if (p.size() == 4) {
+        const qint64 fr = parse(t, fps);
+        return fr < 0 ? -1 : double(fr) / nominalFps(fps);
+    }
+    double total = 0;
+    for (int i = 0; i < p.size(); ++i) {
+        bool ok = false;
+        const double v = p[i].toDouble(&ok);
+        const bool last = i == p.size() - 1;
+        if (!ok || v < 0 || !std::isfinite(v) || (!last && v != std::floor(v)) || (i > 0 && v >= 60))
+            return -1;
+        total = total * 60 + v;
+    }
+    return total;
+}
+
 }

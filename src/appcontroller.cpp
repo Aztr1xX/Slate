@@ -447,6 +447,11 @@ QString AppController::formatTimecode(double seconds, double fps) const
     return Timecode::fromSeconds(seconds, fps);
 }
 
+double AppController::parseTime(const QString &text, double fps) const
+{
+    return Timecode::parseFlexible(text, fps);
+}
+
 QString AppController::formatClock(double seconds) const
 {
     return Timecode::clock(seconds);

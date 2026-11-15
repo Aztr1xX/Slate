@@ -15,7 +15,8 @@ QtObject {
 
     readonly property color ink: "#e8eaed"
     readonly property color ink2: "#a4aab3"
-    readonly property color ink3: "#6e747e"
+    readonly property color ink3: "#878d97"      // secondary text: at least 4.5:1 on every surface
+    readonly property color ink4: "#4b5058"      // decoration only (empty stars, idle ticks), never text
 
     readonly property color accent: "#4f8cff"
     readonly property color accentHover: "#6a9eff"
@@ -26,10 +27,13 @@ QtObject {
     readonly property color bad: "#e5484d"
     readonly property color note: "#e8b339"
     readonly property color warn: "#e8b339"
+    readonly property color popup: "#1d1f23"     // menus, tooltips, palette
+    readonly property color scrim: Qt.rgba(0, 0, 0, 0.55)   // chips over the picture
 
     readonly property string mono: Qt.platform.os === "windows" ? "Cascadia Mono, Consolas" : "DejaVu Sans Mono"
     readonly property int radius: 6
     readonly property int radiusLg: 10
+    readonly property int fontTiny: 10           // the smallest text anywhere
     readonly property int fontSmall: 11
     readonly property int fontBody: 13
     readonly property int fontTitle: 15

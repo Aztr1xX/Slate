@@ -8,6 +8,7 @@ Popup {
     id: dlg
     signal accepted(string url)
     signal download(string url)
+    parent: Overlay.overlay
     modal: true
     focus: true
     anchors.centerIn: Overlay.overlay

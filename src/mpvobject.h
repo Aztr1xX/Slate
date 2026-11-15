@@ -4,6 +4,7 @@
 #include <QImage>
 #include <QQuickFramebufferObject>
 #include <QVariant>
+#include <QHash>
 #include <QtQml/qqml.h>
 #include <mpv/client.h>
 #include <mpv/render_gl.h>
@@ -86,6 +87,8 @@ public:
     Q_INVOKABLE void setAudioTrack(int id);
     Q_INVOKABLE void setSubtitleTrack(int id);
     Q_INVOKABLE void addSubtitle(const QString &file);
+    // Cheaper scaling and no extra passes, for older or weaker graphics chips.
+    Q_INVOKABLE void setLightRendering(bool on);
     // Copy of the current video frame, scaled to at most maxWidth (for scopes).
     QImage grabFrame(int maxWidth) const;
     std::function<QImage(int)> frameGrabber() const;     // thread-safe grabber for background work
@@ -144,4 +147,6 @@ private:
     QVariantMap m_info;
     QVariantList m_audioTracks, m_subTracks;
     int m_aid = 0, m_sid = 0;
+    double m_containerFps = 0, m_estimatedFps = 0;
+    QHash<QByteArray, QByteArray> m_qualitySnapshot; // option values before light rendering
 };

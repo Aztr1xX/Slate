@@ -17,6 +17,11 @@
 #include <QUrl>
 #include <algorithm>
 #include <cmath>
+#ifdef Q_OS_WIN
+#include <qt_windows.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace {
 constexpr int kSampleRate = 8000;                                // decode rate for the waveform
@@ -82,12 +87,24 @@ QString Media::toolPath(const QString &name)
     return QStandardPaths::findExecutable(name);
 }
 
+void Media::makeBackground(QProcess *p)
+{
+#ifdef Q_OS_WIN
+    p->setCreateProcessArgumentsModifier([](QProcess::CreateProcessArguments *a) {
+        a->flags |= BELOW_NORMAL_PRIORITY_CLASS | CREATE_NO_WINDOW;
+    });
+#else
+    p->setChildProcessModifier([] { (void)::nice(10); });
+#endif
+}
+
 QProcess *Media::spawn(const QString &tool, const QStringList &args)
 {
     const QString exe = toolPath(tool);
     if (exe.isEmpty())
         return nullptr;
     auto *p = new QProcess(this);
+    makeBackground(p);
     p->setProgram(exe);
     p->setArguments(args);
     connect(p, &QProcess::finished, p, &QObject::deleteLater);
@@ -128,6 +145,7 @@ void Media::analyse(const QString &file, double duration, bool hasVideo)
     m_hasVideo = hasVideo;
     m_peak.clear();
     m_rms.clear();
+    m_maxPeak = 0;
     m_pcmTail.clear();
     m_silences.clear();
     m_waveDone = false;
@@ -190,6 +208,7 @@ void Media::startWaveform()
                 sum += double(v) * v;
             }
             m_peak << float(pk / 32768.0);
+            m_maxPeak = qMax(m_maxPeak, m_peak.last());
             m_rms << float(std::sqrt(sum / kSamplesPerBin) / 32768.0);
         }
         m_pcmTail.remove(0, bins * binBytes);
@@ -281,6 +300,7 @@ bool Media::loadWaveCache()
     m_rms.resize(int(n));
     f.read(reinterpret_cast<char *>(m_peak.data()), n * sizeof(float));
     f.read(reinterpret_cast<char *>(m_rms.data()), n * sizeof(float));
+    m_maxPeak = m_peak.isEmpty() ? 0.f : *std::max_element(m_peak.cbegin(), m_peak.cend());
     m_waveDone = true;
     m_waveProgress = 1;
     ++m_peakRev;
@@ -347,8 +367,9 @@ void Media::startSprite()
         publish();
         return;
     }
-    QStringList args = { QStringLiteral("-v"), QStringLiteral("error"), QStringLiteral("-nostdin"), QStringLiteral("-y") };
-    if (m_duration > 300) // long files: decode keyframes only, much faster
+    QStringList args = { QStringLiteral("-v"), QStringLiteral("error"), QStringLiteral("-nostdin"), QStringLiteral("-y"),
+                         QStringLiteral("-threads"), QStringLiteral("2") };
+    if (m_duration > 90) // longer files: decode keyframes only, many times less work
         args << QStringLiteral("-skip_frame") << QStringLiteral("nokey");
     const QString vf = QStringLiteral("fps=1/%1,scale=%2:%3:force_original_aspect_ratio=decrease,pad=%2:%3:-1:-1:color=black,tile=%4x%5")
                            .arg(interval, 0, 'f', 4).arg(kTileW).arg(kTileH).arg(kCols).arg(kRows);
@@ -493,6 +514,7 @@ void Media::pumpQueue()
 
     if (!m_durations.contains(f)) {
         auto *p = new QProcess(this);
+        makeBackground(p);
         m_queueProc = p;
         connect(p, &QProcess::finished, this, [this, p, f, base](int) {
             p->deleteLater();
@@ -518,6 +540,7 @@ void Media::pumpQueue()
     const double at = d > 0 ? qMin(d * 0.1, 3.0) : 0;
     const QString out = base + QStringLiteral(".thumb.jpg");
     auto *p = new QProcess(this);
+    makeBackground(p);
     m_queueProc = p;
     connect(p, &QProcess::finished, this, [this, p, f, out](int code) {
         p->deleteLater();
@@ -529,7 +552,7 @@ void Media::pumpQueue()
         pumpQueue();
     });
     p->start(ffmpegExe, { QStringLiteral("-v"), QStringLiteral("error"), QStringLiteral("-nostdin"), QStringLiteral("-y"),
-                          QStringLiteral("-ss"), QString::number(at, 'f', 2), QStringLiteral("-i"), f, QStringLiteral("-frames:v"), QStringLiteral("1"),
+                          QStringLiteral("-threads"), QStringLiteral("2"), QStringLiteral("-ss"), QString::number(at, 'f', 2), QStringLiteral("-i"), f, QStringLiteral("-frames:v"), QStringLiteral("1"),
                           QStringLiteral("-vf"), QStringLiteral("scale=160:90:force_original_aspect_ratio=increase,crop=160:90"),
                           QStringLiteral("-q:v"), QStringLiteral("5"), out });
 }

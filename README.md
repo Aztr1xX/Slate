@@ -65,9 +65,18 @@ so it opens practically any video or audio format, and uses a modern **Qt 6** in
 
 ### Reviewing
 - **Frame accurate**: step frames both ways, SMPTE timecode and frame number, exact seeks on release.
+- **Go to a time** (Ctrl + G, or click the big timecode): type `90`, `1:30`, `00:01:30:12`, `f450` for a frame,
+  or `+5` / `-2` to jump relative to where you are.
 - **Timeline** with the audio waveform, In / Out range, markers and a hover preview of the frame.
+  Drag the In and Out edges to adjust them; they snap to markers (hold Shift to stop snapping), and the
+  range shows its length. Click a marker to jump to it and hover it to read its note.
   Ctrl + wheel zooms around the pointer, double-click resets.
 - **Markers** in three kinds (Note, Good take, Mistake) with notes, saved automatically for each file.
+  **Shift + M** drops a Good take and **Alt + M** a Mistake in one press.
+- **Instant feedback**: a small overlay at the top confirms volume, speed, In / Out, loop and marker changes,
+  so you never have to look away from the picture to check what a key did.
+- **Right-click the picture** for the common actions (markers, In / Out, copy or save the frame, zoom, crop guide).
+- **Star rating in the header** for the clip you're watching, plus the 1 to 5 keys.
 - **Clips panel** with thumbnails, durations and 1 to 5 star ratings, plus a rating filter.
   Right-click a clip to **compare it side by side** with the current one.
 - **Crop guide** (G): a 9:16, 4:5 or 1:1 frame over the picture, draggable sideways, to see if a shot works as a Short.
@@ -100,7 +109,10 @@ so it opens practically any video or audio format, and uses a modern **Qt 6** in
   Pick a different folder in **Settings → Exports**.
 
 ### Everyday comforts
-- **Command palette** (Ctrl + K) to search every action.
+- **Command palette** (Ctrl + K) to search every action. Actions you use often come first.
+- **Resizable side panel**: drag its left edge (double-click to reset). Tabs are labelled and only load when you open them.
+- **Fast on any computer**: analysis runs at low priority so playback never stutters, and
+  **Settings → Playback → Lighter video rendering** trades a little scaling sharpness for much less GPU work on older laptops.
 - **Fully remappable shortcuts** in **Settings → Shortcuts**.
 - **Built-in updates**: Slate checks GitHub for a new version, downloads it in the background and installs it when you restart.
 - Explorer integration: **Open with → Slate**, **Review folder in Slate** on folders, and an option to make Slate the default player.
@@ -117,6 +129,7 @@ so it opens practically any video or audio format, and uses a modern **Qt 6** in
 | <img src="docs/screenshots/clips.jpg" alt="Clips panel with thumbnails and star ratings"><br>**Clips** with thumbnails and star ratings | <img src="docs/screenshots/media-info.jpg" alt="Media info panel"><br>**Media info**, including loudness and variable frame rate checks |
 | <img src="docs/screenshots/scopes.jpg" alt="Video scopes panel"><br>**Scopes**: waveform, parade, histogram and vectorscope | <img src="docs/screenshots/audio-levels.jpg" alt="Audio levels panel"><br>**Audio levels** with loudness, true peak and range |
 | <img src="docs/screenshots/crop-guide.jpg" alt="9:16 crop guide over the picture"><br>**Crop guide** for checking Shorts framing | <img src="docs/screenshots/command-palette.jpg" alt="Command palette"><br>**Command palette** for every action |
+| <img src="docs/screenshots/go-to.jpg" alt="Typing a time into the timecode"><br>**Go to a time** by typing it into the timecode | <img src="docs/screenshots/context-menu.jpg" alt="Right-click menu on the picture"><br>**Right-click menu** on the picture |
 | <img src="docs/screenshots/shortcuts.jpg" alt="Keyboard shortcut settings"><br>**Remappable shortcuts** | <img src="docs/screenshots/updates.jpg" alt="About and updates settings page"><br>**Updates** handled inside the app |
 
 ## Install
@@ -150,8 +163,8 @@ Turn off automatic downloads, or check by hand, in **Settings → About**.
 ## A typical review session
 
 1. Right-click the folder of raw clips in Explorer and choose **Review folder in Slate**.
-2. Play the first clip. Press **M** to drop a marker whenever something happens, and pick its kind
-   (Good take, Mistake or Note) in the Markers panel. Press **1** to **5** to rate the take.
+2. Play the first clip. Press **M** to drop a marker whenever something happens (**Shift + M** for a good take,
+   **Alt + M** for a mistake). Press **1** to **5** to rate the take.
 3. Use **,** and **.** to find the exact frame, **I** and **O** to mark a section, and **Ctrl + E** to cut it out losslessly.
 4. Check the **Info** tab for loudness and variable frame rate, and the **Audio levels** tab to make sure both mics recorded.
 5. Press **PgDn** for the next clip. When you're done, filter the Clips panel by rating to see your best takes.
@@ -167,13 +180,14 @@ These are the defaults. Every one can be changed in **Settings → Shortcuts**, 
 | , and . | Previous / next frame |
 | ← → | Back / forward 5 s (with Shift: 1 s) |
 | Home / End | Go to start / end |
+| Ctrl + G | Go to a typed time or frame |
 | J K L | Rewind / stop / play (press L again to go faster) |
 | [ ] = | Slower / faster / normal speed |
 | Ctrl + Shift + K | Skip silences |
 | ↑ ↓, Ctrl + M | Volume up / down, mute |
 | I, O, X | Set In, set Out, clear both |
 | Ctrl + L | Loop between In and Out |
-| M | Add marker |
+| M, Shift + M, Alt + M | Add a note, good take or mistake marker |
 | Ctrl + ← / Ctrl + → | Previous / next marker |
 | 1 to 5, 0 | Rate the clip, clear the rating |
 | Ctrl + E | Export In to Out losslessly (Ctrl + Shift + E: frame-exact) |
@@ -189,6 +203,7 @@ These are the defaults. Every one can be changed in **Settings → Shortcuts**, 
 | H | Hide the side panel |
 | F, F11 or double-click | Full screen |
 | Ctrl + K | Search all actions |
+| Esc | Leave full screen, comparison, zoom or the crop guide |
 | ? | Show the shortcut list |
 | Ctrl + , | Settings |
 

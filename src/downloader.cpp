@@ -146,6 +146,7 @@ QString Downloader::tempDir() const
 QProcess *Downloader::newProcess()
 {
     auto *p = new QProcess(this);
+    Media::makeBackground(p);
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     env.insert(QStringLiteral("PYTHONUTF8"), QStringLiteral("1"));        // titles with any characters
     env.insert(QStringLiteral("PYTHONIOENCODING"), QStringLiteral("utf-8"));

@@ -4,6 +4,33 @@ Every push to `main` publishes a new release named `1.1.<build number>`, and ins
 update themselves to it. Builds that only fixed the CI are left out below.
 Downloads: [Releases](https://github.com/Aztr1xX/Slate/releases).
 
+## 1.1.30 (2026-11-15)
+A full pass over how Slate looks and feels, plus speed work so it runs well on older computers.
+
+- **Go to a time** (Ctrl + G, or click the big timecode): type `90`, `1:30`, a full timecode, `f450` for a
+  frame, or `+5` / `-2` to jump from where you are.
+- **Drag the In and Out edges** on the timeline. They snap to markers and to each other (hold Shift to stop
+  snapping), and the range shows its length. A hover line shows where a click will land.
+- Markers on the timeline: click one to jump to it, hover to read its note.
+- **Shift + M** drops a Good take marker and **Alt + M** a Mistake, without opening the panel.
+- A small overlay at the top of the picture confirms volume, speed, In / Out, loop and marker changes.
+- **Right-click the picture** for play, markers, In / Out, copy or save the frame, go to, zoom, crop guide,
+  full screen and show in folder.
+- Star rating for the current clip in the header.
+- The Markers panel shows each marker's kind in colour, and a new card shows the In / Out times, clip
+  length and a clear button.
+- Side panel: tabs now have labels, and the panel can be resized by dragging its left edge (double-click to reset).
+- Esc steps back out of full screen, then a comparison, then zoom, then the crop guide.
+- The command palette puts the actions you used recently first.
+- Clearer text: secondary text now has enough contrast to read comfortably, shortcuts are drawn as keys,
+  and the start screen lists the main keys.
+- **Lighter video rendering** option in Settings → Playback for older laptops and integrated graphics.
+- Faster: dialogs and side tabs only load when first opened, thumbnails, waveforms and loudness run at low
+  priority with fewer threads so playback never stutters, long clips build their preview strip from
+  keyframes, the waveform no longer rescans the whole clip on every redraw, and frame rate changes no
+  longer block the interface.
+- Fixed: after editing a marker note, keyboard shortcuts could stop working until you clicked the picture.
+
 ## 1.1.26 (2026-11-15)
 - **Download from YouTube** (Ctrl + D, the download button in the header, or "Download video" on the start
   screen). Paste a link, choose MP4, MKV, WebM, MOV or AVI, or audio only as MP3, M4A, WAV, FLAC, Opus or

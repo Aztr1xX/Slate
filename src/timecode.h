@@ -23,4 +23,9 @@ QString clock(double seconds);
 // Parse "HH:MM:SS:FF" back to a frame count; returns -1 on bad input.
 qint64 parse(const QString &tc, double fps);
 
+// What a person types into "Go to": "90" or "90.5" (seconds), "1:30", "1:02:03",
+// "00:01:02:12" (timecode with frames) or "f1234" (a frame number).
+// Returns seconds, or -1 when the text isn't a time.
+double parseFlexible(const QString &text, double fps);
+
 }

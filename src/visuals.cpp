@@ -36,8 +36,7 @@ void WaveformItem::paint(QPainter *p)
 
     float gain = 1.f;
     if (m_normalize) {
-        float mx = 0.f;
-        for (float v : pk) mx = qMax(mx, v);
+        const float mx = Media::instance()->maxPeak();
         if (mx > 0.02f) gain = 0.95f / mx;
     }
     const double mid = h / 2.0;

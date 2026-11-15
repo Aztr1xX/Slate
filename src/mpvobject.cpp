@@ -479,11 +479,11 @@ void MpvObject::handleProperty(mpv_event_property *p)
     else if (name == "volume") { m_volume = d(100); emit volumeChanged(); }
     else if (name == "mute") { m_muted = b(); emit mutedChanged(); }
     else if (name == "container-fps" || name == "estimated-vf-fps") {
-        // Prefer the container's declared rate; fall back to the measured one.
-        double c = 0, e = 0;
-        mpv_get_property(m_mpv, "container-fps", MPV_FORMAT_DOUBLE, &c);
-        mpv_get_property(m_mpv, "estimated-vf-fps", MPV_FORMAT_DOUBLE, &e);
-        const double f = (c > 0 && std::isfinite(c)) ? c : ((e > 0 && std::isfinite(e)) ? e : 0);
+        // Prefer the container's declared rate; fall back to the measured one. The measured rate
+        // changes many times a second while playing, so read it from the event, never from mpv.
+        const double v = d(0);
+        (name == "container-fps" ? m_containerFps : m_estimatedFps) = (v > 0 && std::isfinite(v)) ? v : 0;
+        const double f = m_containerFps > 0 ? m_containerFps : m_estimatedFps;
         if (!qFuzzyCompare(f + 1, m_fps + 1)) { m_fps = f; emit fpsChanged(); }
     }
     else if (name == "media-title") { m_title = s(); emit mediaTitleChanged(); }
@@ -572,6 +572,29 @@ void MpvObject::setSubtitleTrack(int id)
 void MpvObject::addSubtitle(const QString &file)
 {
     command({ QStringLiteral("sub-add"), file, QStringLiteral("select") });
+}
+
+void MpvObject::setLightRendering(bool on)
+{
+    if (!m_mpv) return;
+    // mpv's own "fast" profile, applied and undone property by property.
+    static const QList<QPair<const char *, const char *>> fast = {
+        { "scale", "bilinear" }, { "dscale", "bilinear" }, { "cscale", "bilinear" }, { "dither", "no" },
+        { "correct-downscaling", "no" }, { "linear-downscaling", "no" }, { "sigmoid-upscaling", "no" },
+        { "hdr-compute-peak", "no" }, { "allow-delayed-peak-detect", "yes" },
+    };
+    if (on && m_qualitySnapshot.isEmpty()) {
+        for (const auto &kv : fast) {
+            char *cur = mpv_get_property_string(m_mpv, kv.first);
+            if (cur) { m_qualitySnapshot.insert(kv.first, cur); mpv_free(cur); }
+            mpv_set_property_string(m_mpv, kv.first, kv.second);
+        }
+    } else if (!on && !m_qualitySnapshot.isEmpty()) {
+        for (auto it = m_qualitySnapshot.cbegin(); it != m_qualitySnapshot.cend(); ++it)
+            mpv_set_property_string(m_mpv, it.key().constData(), it.value().constData());
+        m_qualitySnapshot.clear();
+    }
+    update();
 }
 
 void MpvObject::applyAudioFilters()

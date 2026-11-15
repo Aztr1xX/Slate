@@ -206,6 +206,30 @@ public:
              [this] { return m_win->property("settingsOpen").toBool(); });
         step("settings closed", [this] { QMetaObject::invokeMethod(m_win, "closeSettings"); },
              [this] { return !m_win->property("settingsOpen").toBool(); });
+        step("download dialog opens on demand", [this] { QMetaObject::invokeMethod(m_win, "openDownloads", Q_ARG(QVariant, QVariant(QString()))); },
+             [this] { return m_win->property("downloadsOpen").toBool(); });
+        step("download dialog closed", [this] { QMetaObject::invokeMethod(m_win, "closeDownloads"); },
+             [this] { return !m_win->property("downloadsOpen").toBool(); });
+        step("every side tab builds when shown", [this] {
+            for (int i = 5; i >= 0; --i) QMetaObject::invokeMethod(m_win, "showTab", Q_ARG(QVariant, QVariant(i)));
+        }, [this] { return m_win->findChild<ScopeItem *>() != nullptr && m_win->property("sideTab").toInt() == 0; });
+        step("lighter rendering on", [this] { m_mpv->setLightRendering(true); },
+             [this] { return m_mpv->getProperty(QStringLiteral("scale")).toString() == QLatin1String("bilinear"); });
+        step("lighter rendering off again", [this] { m_mpv->setLightRendering(false); },
+             [this] { return m_mpv->getProperty(QStringLiteral("scale")).toString() != QLatin1String("bilinear"); });
+        step("go to a typed time (Ctrl+G, 0:03, Enter)", [this] {
+            QTest::keyClick(m_win, Qt::Key_G, Qt::ControlModifier);
+            QTimer::singleShot(150, this, [this] { type("0:03"); QTest::keyClick(m_win, Qt::Key_Return); });
+        }, [this] { return qAbs(m_mpv->position() - 3.0) < 0.02; });
+        step("go to a frame (f45 at 30 fps is 1.5 s)", [this] {
+            QTest::keyClick(m_win, Qt::Key_G, Qt::ControlModifier);
+            QTimer::singleShot(150, this, [this] { type("f45"); QTest::keyClick(m_win, Qt::Key_Return); });
+        }, [this] { return qAbs(m_mpv->position() - 1.5) < 0.02; });
+        step("Shift+M marks a good take", [this] { m_app->markers()->clear(); QTest::keyClick(m_win, Qt::Key_M, Qt::ShiftModifier); },
+             [this] { return m_app->markers()->count() == 1 && m_app->markers()->items().first().kind == MarkerModel::Good; });
+        step("volume keys", [this] { m_vol0 = m_mpv->volume(); QTest::keyClick(m_win, Qt::Key_Down); },
+             [this] { return qAbs(m_mpv->volume() - qMax(0.0, m_vol0 - 5)) < 0.5; });
+        step("volume back up", [this] { QTest::keyClick(m_win, Qt::Key_Up); }, [this] { return qAbs(m_mpv->volume() - m_vol0) < 0.5 || m_vol0 > 95; });
         step("transcript parser", [] {}, [] {
             QVariantList segs;
             const QByteArray j = R"({"transcription":[{"timestamps":{"from":"00:00:00,000","to":"00:00:02,500"},"offsets":{"from":0,"to":2500},"text":" Hello there."},)"
@@ -290,6 +314,7 @@ public:
     }
 
 private:
+    void type(const char *text) { for (const char *c = text; *c; ++c) QTest::keyClick(m_win, *c); }
     // Prints, and also appends to <screenshot>.log because Windows GUI apps have no console.
     void say(const QString &line)
     {
@@ -363,7 +388,7 @@ private:
 
     QQuickWindow *m_win; MpvObject *m_mpv; AppController *m_app; QString m_file, m_shot;
     QVector<Step> m_steps; int m_i = 0, m_failed = 0; QElapsedTimer m_clock;
-    qint64 m_f0 = 0; double m_p0 = 0; QString m_lastMsg, m_lastPath, m_grab, m_next, m_lastPixel; QElapsedTimer m_settle;
+    qint64 m_f0 = 0; double m_p0 = 0, m_vol0 = 100; QString m_lastMsg, m_lastPath, m_grab, m_next, m_lastPixel; QElapsedTimer m_settle;
 };
 
 
@@ -382,12 +407,30 @@ public:
         // name, action, delay before the shot
         m_shots = {
             { QStringLiteral("01-review"), [this] { call("showTab", 0); }, 6000 },
+            { QStringLiteral("01a-markers-range"), [this] {
+                  auto *app = AppController::instance();
+                  if (app->markers()->count() == 0) {
+                      app->markers()->add(3.2, 1, QStringLiteral("Clean slate, strong start"));
+                      app->markers()->add(14.5, 0, QStringLiteral("Cut the cough here"));
+                      app->markers()->add(26.0, 2, QStringLiteral("Fluffed the line"));
+                  }
+                  app->setInPoint(8.0);
+                  app->setOutPoint(21.5);
+                  if (auto *mpv = m_win->findChild<MpvObject *>()) { mpv->setPaused(true); mpv->seekTo(12.0); }
+                  QMetaObject::invokeMethod(m_win, "setVolume", Q_ARG(QVariant, 65));
+              }, 500 },
+            { QStringLiteral("01a2-context-menu"), [this] {
+                  QTest::mouseClick(m_win, Qt::RightButton, Qt::NoModifier, QPoint(420, 300));
+              }, 700 },
             { QStringLiteral("01b-paused-volume-hover"), [this] {
+                  QTest::keyClick(m_win, Qt::Key_Escape);
                   if (auto *mpv = m_win->findChild<MpvObject *>()) mpv->setPaused(true);
                   QTest::mouseMove(m_win, QPoint(m_win->width() - 94, m_win->height() - 26));
               }, 1200 },
-            { QStringLiteral("01c-crop-guide"), [this] { QMetaObject::invokeMethod(m_win, "cycleGuide"); }, 900 },
-            { QStringLiteral("02-clips"), [this] { QMetaObject::invokeMethod(m_win, "cycleGuide"); QMetaObject::invokeMethod(m_win, "cycleGuide"); QMetaObject::invokeMethod(m_win, "cycleGuide"); QTest::mouseMove(m_win, QPoint(600, 300)); call("showTab", 1); }, 2500 },
+            { QStringLiteral("01b2-go-to"), [this] { QTest::keyClick(m_win, Qt::Key_Escape); QMetaObject::invokeMethod(m_win, "beginGoTo"); }, 600 },
+            { QStringLiteral("01c-crop-guide"), [this] { QTest::keyClick(m_win, Qt::Key_Escape); QMetaObject::invokeMethod(m_win, "cycleGuide"); }, 900 },
+            { QStringLiteral("02-clips"), [this] { QMetaObject::invokeMethod(m_win, "cycleGuide"); QMetaObject::invokeMethod(m_win, "cycleGuide"); QMetaObject::invokeMethod(m_win, "cycleGuide"); QTest::mouseMove(m_win, QPoint(600, 300)); call("showTab", 1);
+                  if (QObject *t = m_win->findChild<QObject *>(QStringLiteral("toast"))) t->setProperty("opacity", 0.0); }, 2500 },
             { QStringLiteral("03-info"), [this] { call("showTab", 2); }, 800 },
             { QStringLiteral("04-transcript"), [this] { call("showTab", 3); }, 800 },
             { QStringLiteral("05-scopes"), [this] { if (auto *mpv = m_win->findChild<MpvObject *>()) mpv->setPaused(false); call("showTab", 4); }, 1500 },
@@ -400,8 +443,7 @@ public:
             { QStringLiteral("09b-about-updates"), [this] { if (qEnvironmentVariableIsSet("SLATE_FAKE_UPDATE")) Updater::instance()->check(false); call("openSettings", 6); }, 800 },
             { QStringLiteral("09c-download"), [this] {
                   QMetaObject::invokeMethod(m_win, "closeSettings");
-                  if (QObject *dd = m_win->findChild<QObject *>(QStringLiteral("downloadDialog"))) dd->setProperty("presetUrl", qEnvironmentVariable("SLATE_TOUR_DOWNLOAD"));
-                  QMetaObject::invokeMethod(m_win, "openDownloads");
+                  QMetaObject::invokeMethod(m_win, "openDownloads", Q_ARG(QVariant, QVariant(qEnvironmentVariable("SLATE_TOUR_DOWNLOAD"))));
               }, 6000 },
             { QStringLiteral("09d-download-audio"), [this] {
                   if (QObject *dd = m_win->findChild<QObject *>(QStringLiteral("downloadDialog"))) dd->setProperty("kind", QStringLiteral("audio"));
