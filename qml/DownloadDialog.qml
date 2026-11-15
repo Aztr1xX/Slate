@@ -95,8 +95,10 @@ Popup {
     width: Math.min(680, parent.width - 60)
     padding: 22
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-    Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, 0.5) }
-    background: Rectangle { color: Theme.panel; radius: Theme.radiusLg; border.color: Theme.lineStrong }
+    Overlay.modal: Rectangle { color: Theme.scrim }
+    enter: Transition { ParallelAnimation { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.fast } NumberAnimation { property: "scale"; from: 0.98; to: 1; duration: Theme.normal; easing.type: Easing.OutCubic } } }
+    exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.fast } }
+    background: Rectangle { color: Theme.popup; radius: Theme.radiusLg; border.color: Theme.lineStrong }
     onOpened: {
         Downloader.prepare()
         if (working) return
@@ -123,14 +125,14 @@ Popup {
         signal pick()
         implicitHeight: 54
         radius: Theme.radius
-        color: selected ? Theme.accentSoft : (tma.containsMouse ? Theme.raise : Theme.bg)
-        border.color: selected ? Theme.accent : Theme.line
+        color: selected ? Theme.accentSoft : (tma.containsMouse ? Theme.hover : Theme.raise)
+        border.color: selected ? Theme.accent : "transparent"
         Column {
             anchors.left: parent.left; anchors.leftMargin: 12
             anchors.right: parent.right; anchors.rightMargin: 8
             anchors.verticalCenter: parent.verticalCenter
             spacing: 2
-            Text { text: tile.modelData.name; color: Theme.ink; font.pixelSize: 14; font.weight: Font.DemiBold }
+            Text { text: tile.modelData.name; color: Theme.ink; font.pixelSize: Theme.fontBody; font.weight: Font.Medium }
             Text { width: parent.width; text: tile.modelData.note; color: tile.selected ? Theme.ink2 : Theme.ink3; font.pixelSize: 11; elide: Text.ElideRight }
         }
         MouseArea { id: tma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: tile.pick() }
@@ -162,7 +164,7 @@ Popup {
                 color: Theme.ink; font.pixelSize: Theme.fontBody
                 selectByMouse: true; selectionColor: Theme.accent
                 leftPadding: 12
-                background: Rectangle { radius: Theme.radius; color: Theme.bg; border.color: field.activeFocus ? Theme.accent : Theme.line }
+                background: Rectangle { radius: Theme.radius; color: Theme.well; border.color: field.activeFocus ? Theme.accent : Theme.line }
                 onAccepted: dlg.lookUp()
                 onTextEdited: if (Downloader.looksLikeUrl(text)) pasteTimer.restart()
                 Keys.onEscapePressed: dlg.close()
@@ -190,8 +192,8 @@ Popup {
             Layout.fillWidth: true
             implicitHeight: errText.implicitHeight + 20
             radius: Theme.radius
-            color: Qt.rgba(0.9, 0.28, 0.3, 0.12)
-            border.color: Qt.rgba(0.9, 0.28, 0.3, 0.45)
+            color: Qt.rgba(0.94, 0.34, 0.36, 0.10)
+            Rectangle { width: 2; height: parent.height - 12; y: 6; radius: 1; color: Theme.bad }
             Text { id: errText; x: 12; width: parent.width - 24; anchors.verticalCenter: parent.verticalCenter; text: Downloader.error; color: Theme.ink; font.pixelSize: 12; wrapMode: Text.WordWrap }
         }
         Text {
@@ -208,8 +210,7 @@ Popup {
             Layout.fillWidth: true
             implicitHeight: 92
             radius: Theme.radius
-            color: Theme.bg
-            border.color: Theme.line
+            color: Theme.raise
             Rectangle {
                 id: thumbBox
                 x: 8; y: 8; width: 135; height: 76
@@ -251,7 +252,7 @@ Popup {
                 onPicked: (i) => dlg.kind = i === 0 ? "video" : "audio"
             }
 
-            Text { text: "Format"; color: Theme.ink2; font.pixelSize: 12; font.weight: Font.DemiBold }
+            Text { text: "Format"; color: Theme.ink2; font.pixelSize: Theme.fontLabel; font.weight: Font.Medium }
             GridLayout {
                 Layout.fillWidth: true
                 columns: 3
@@ -267,7 +268,7 @@ Popup {
                 }
             }
 
-            Text { visible: dlg.kind === "video" && dlg.hasVideo; text: "Resolution"; color: Theme.ink2; font.pixelSize: 12; font.weight: Font.DemiBold }
+            Text { visible: dlg.kind === "video" && dlg.hasVideo; text: "Resolution"; color: Theme.ink2; font.pixelSize: Theme.fontLabel; font.weight: Font.Medium }
             Flow {
                 visible: dlg.kind === "video" && dlg.hasVideo
                 Layout.fillWidth: true
@@ -280,13 +281,13 @@ Popup {
                         required property int index
                         readonly property bool selected: dlg.maxHeight === 0 ? index === 0 : modelData.height === dlg.maxHeight
                         width: chipRow.implicitWidth + 20; height: 30; radius: Theme.radius
-                        color: selected ? Theme.accentSoft : (cma.containsMouse ? Theme.raise : Theme.bg)
-                        border.color: selected ? Theme.accent : Theme.line
+                        color: selected ? Theme.accentSoft : (cma.containsMouse ? Theme.hover : Theme.raise)
+                        border.color: selected ? Theme.accent : "transparent"
                         Row {
                             id: chipRow
                             anchors.centerIn: parent; spacing: 6
-                            Text { text: chip.modelData.label; color: Theme.ink; font.pixelSize: 12; font.weight: chip.index === 0 ? Font.DemiBold : Font.Normal; anchors.verticalCenter: parent.verticalCenter }
-                            Text { visible: !!chip.modelData.tag || chip.modelData.hdr; text: [chip.modelData.tag, chip.modelData.hdr ? "HDR" : ""].filter(s => s).join(" "); color: chip.index === 0 ? Theme.accent : Theme.ink3; font.pixelSize: 10; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: chip.modelData.label; color: Theme.ink; font.pixelSize: Theme.fontLabel; font.weight: chip.index === 0 ? Font.Medium : Font.Normal; anchors.verticalCenter: parent.verticalCenter }
+                            Text { visible: !!chip.modelData.tag || chip.modelData.hdr; text: [chip.modelData.tag, chip.modelData.hdr ? "HDR" : ""].filter(s => s).join(" "); color: chip.index === 0 ? Theme.accentText : Theme.ink3; font.pixelSize: Theme.fontTiny; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
                             Text { visible: chip.index === 0; text: "Best"; color: Theme.ink3; font.pixelSize: 10; anchors.verticalCenter: parent.verticalCenter }
                         }
                         MouseArea { id: cma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: dlg.maxHeight = chip.index === 0 ? 0 : chip.modelData.height }
@@ -341,7 +342,7 @@ Popup {
             }
             Rectangle {
                 Layout.fillWidth: true
-                height: 6; radius: 3; color: Theme.bg; border.color: Theme.line
+                height: 6; radius: 3; color: Theme.well; border.color: Theme.line
                 Rectangle { width: Math.max(6, parent.width * Downloader.progress); height: parent.height; radius: 3; color: Theme.accent; Behavior on width { NumberAnimation { duration: 200 } } }
             }
             Text { text: [Downloader.speed, Downloader.eta].filter(s => s).join("  ·  ") || " "; color: Theme.ink3; font.pixelSize: 12 }

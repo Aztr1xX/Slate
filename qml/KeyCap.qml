@@ -10,13 +10,13 @@ Rectangle {
     implicitWidth: kt.implicitWidth + 10
     implicitHeight: 18
     radius: 4
-    color: Theme.bg
+    color: Theme.well
     border.color: Theme.lineStrong
     Text {
         id: kt
         anchors.centerIn: parent
         text: kc.text
         color: kc.strong ? Theme.ink : Theme.ink2
-        font.pixelSize: Theme.fontTiny + 1
+        font.pixelSize: Theme.fontSmall; font.weight: Font.Medium
     }
 }

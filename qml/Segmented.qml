@@ -10,8 +10,7 @@ Rectangle {
     implicitHeight: 30
     implicitWidth: row.implicitWidth + 6
     radius: Theme.radius
-    color: Theme.bg
-    border.color: Theme.line
+    color: Theme.well
     Row {
         id: row
         anchors.fill: parent; anchors.margins: 3
@@ -23,11 +22,12 @@ Rectangle {
                 required property int index
                 width: (row.width - (seg.options.length - 1) * 2) / seg.options.length
                 height: row.height; radius: 4
-                color: index === seg.current ? Theme.hover : (ma.containsMouse ? Theme.raise : "transparent")
+                color: index === seg.current ? Theme.press : (ma.containsMouse ? Theme.raise : "transparent")
+                Behavior on color { ColorAnimation { duration: Theme.fast } }
                 Row {
                     anchors.centerIn: parent; spacing: 6
                     Icon { visible: !!modelData.icon; name: modelData.icon || ""; size: 15; color: index === seg.current ? Theme.ink : Theme.ink2; anchors.verticalCenter: parent.verticalCenter }
-                    Text { visible: !!modelData.text; text: modelData.text || ""; color: index === seg.current ? Theme.ink : Theme.ink2; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                    Text { visible: !!modelData.text; text: modelData.text || ""; color: index === seg.current ? Theme.ink : Theme.ink2; font.pixelSize: Theme.fontLabel; font.weight: index === seg.current ? Font.Medium : Font.Normal; anchors.verticalCenter: parent.verticalCenter }
                 }
                 MouseArea { id: ma; anchors.fill: parent; hoverEnabled: true; onClicked: { seg.current = index; seg.picked(index) } }
             }

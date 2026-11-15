@@ -544,12 +544,20 @@ int main(int argc, char *argv[])
         icon.addFile(QStringLiteral(":/Slate/assets/slate.png"), QSize(512, 512));
         app.setWindowIcon(icon);
     }
+    // Slate ships its own copy of Inter (SIL OFL) with tabular figures as the default digits, so
+    // timecodes, counters and lists of times line up and don't jitter as they change.
+    QString uiFamily;
+    for (const char *w : {"Regular", "Medium", "SemiBold"}) {
+        const int id = QFontDatabase::addApplicationFont(QStringLiteral(":/Slate/assets/fonts/SlateInter-%1.ttf").arg(QLatin1String(w)));
+        if (id >= 0 && uiFamily.isEmpty() && !QFontDatabase::applicationFontFamilies(id).isEmpty())
+            uiFamily = QFontDatabase::applicationFontFamilies(id).constFirst();
+    }
 #ifdef Q_OS_WIN
-    QFont uiFont(QStringLiteral("Segoe UI Variable Text"));
-    if (!QFontDatabase::families().contains(uiFont.family())) uiFont.setFamily(QStringLiteral("Segoe UI"));
+    if (uiFamily.isEmpty()) uiFamily = QFontDatabase::families().contains(QStringLiteral("Segoe UI Variable Text")) ? QStringLiteral("Segoe UI Variable Text") : QStringLiteral("Segoe UI");
 #else
-    QFont uiFont(QFontDatabase::families().contains(QStringLiteral("Inter")) ? QStringLiteral("Inter") : QGuiApplication::font().family());
+    if (uiFamily.isEmpty()) uiFamily = QGuiApplication::font().family();
 #endif
+    QFont uiFont(uiFamily);
     uiFont.setPixelSize(13);
     uiFont.setHintingPreference(QFont::PreferNoHinting);
     QGuiApplication::setFont(uiFont);
@@ -589,6 +597,9 @@ int main(int argc, char *argv[])
     auto *win = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
 
     if (cli.isSet(tourOpt)) {
+        // SLATE_TOUR_SIZE=1000x640 checks the layout in a small window
+        const QStringList sz = qEnvironmentVariable("SLATE_TOUR_SIZE").split(QLatin1Char('x'));
+        if (sz.size() == 2 && sz[0].toInt() > 0 && sz[1].toInt() > 0) win->resize(sz[0].toInt(), sz[1].toInt());
         auto *t = new Tour(win, files.isEmpty() ? QString() : QFileInfo(files.first()).absoluteFilePath(), cli.value(tourOpt));
         QTimer::singleShot(300, t, [t] { t->start(); });
     } else if (cli.isSet(selftest)) {

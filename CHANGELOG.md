@@ -4,6 +4,20 @@ Every push to `main` publishes a new release named `1.1.<build number>`, and ins
 update themselves to it. Builds that only fixed the CI are left out below.
 Downloads: [Releases](https://github.com/Aztr1xX/Slate/releases).
 
+## 1.1.37 (2026-11-15)
+A new look. Same layout and features, redrawn to be calmer and easier to read.
+
+- Colours come from the app icon: cool slate greys, with the icon's blue-violet as a single accent for
+  selections, the In / Out range and the main button. No gradients or glows, so the picture stays the most
+  colourful thing on screen.
+- Slate now ships its own copy of the Inter typeface with fixed-width numbers. Timecodes, frame counts and
+  marker times line up and no longer jiggle while playing. The monospace font is gone.
+- The header is one line: the folder, then the clip, with the full path on hover.
+- Side panel tabs are icons with their names on hover, and the panels no longer repeat their titles.
+- Timeline, transport, markers, menus, tooltips, dialogs and scrollbars all follow one set of colours,
+  sizes and spacing. Section labels are in normal case instead of capitals.
+- Menus and dialogs fade in. If Windows' "Animation effects" setting is off, Slate doesn't animate at all.
+
 ## 1.1.33 (2026-11-15)
 - **Fixed: YouTube downloads failing when the title has an emoji** (or other characters the Windows console
   can't show). yt-dlp saved the file fine, but reported its name with the emoji missing, so Slate couldn't

@@ -110,7 +110,8 @@ so it opens practically any video or audio format, and uses a modern **Qt 6** in
 
 ### Everyday comforts
 - **Command palette** (Ctrl + K) to search every action. Actions you use often come first.
-- **Resizable side panel**: drag its left edge (double-click to reset). Tabs are labelled and only load when you open them.
+- **Resizable side panel**: drag its left edge (double-click to reset). Hover a tab icon to see its name; tabs only load when you open them.
+- **A calm, consistent look**: slate greys taken from the app icon, one accent colour, and its own copy of the Inter typeface with fixed-width numbers, so timecodes line up and don't jiggle while they count.
 - **Fast on any computer**: analysis runs at low priority so playback never stutters, and
   **Settings → Playback → Lighter video rendering** trades a little scaling sharpness for much less GPU work on older laptops.
 - **Fully remappable shortcuts** in **Settings → Shortcuts**.

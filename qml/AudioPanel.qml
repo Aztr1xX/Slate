@@ -12,12 +12,7 @@ Item {
         anchors.fill: parent
         spacing: 0
         // ---- audio meter -----------------------------------------------------------
-        Text {
-            Layout.leftMargin: 14
-            Layout.preferredHeight: 44
-            verticalAlignment: Text.AlignVCenter
-            text: "Audio levels"; color: Theme.ink; font.pixelSize: Theme.fontTitle; font.weight: Font.DemiBold
-        }
+        Item { Layout.preferredHeight: 12 }
         Segmented {
             visible: meter.channels >= 2
             Layout.fillWidth: true
@@ -66,7 +61,7 @@ Item {
                             readonly property real lv: meter.levels.length > index ? meter.levels[index] : (meter.levels.length ? meter.levels[0] : -120)
                             Rectangle {
                                 width: parent.width * meter.frac(track.lv); height: parent.height; radius: 3
-                                color: track.lv > -1 ? Theme.bad : (track.lv > -6 ? Theme.note : "#6f86b8")
+                                color: track.lv > -1 ? Theme.bad : (track.lv > -6 ? Theme.note : Theme.accent)
                                 Behavior on width { NumberAnimation { duration: 60 } }
                             }
                             Rectangle {
@@ -85,7 +80,7 @@ Item {
                         delegate: Text {
                             required property int modelData
                             x: 18 + (meter.width - 18) * meter.frac(modelData) - implicitWidth / 2
-                            text: modelData; color: Theme.ink3; font.pixelSize: 9; font.family: Theme.mono
+                            text: modelData; color: Theme.ink3; font.pixelSize: Theme.fontTiny
                         }
                     }
                 }
@@ -102,7 +97,7 @@ Item {
         }
 
         Rectangle { Layout.fillWidth: true; Layout.topMargin: 16; Layout.bottomMargin: 8; height: 1; color: Theme.line }
-        Text { Layout.leftMargin: 14; text: "WHOLE CLIP"; color: Theme.ink3; font.pixelSize: 10; font.letterSpacing: 0.8 }
+        Text { Layout.leftMargin: 14; text: "Whole clip"; color: Theme.ink2; font.pixelSize: Theme.fontLabel; font.weight: Font.Medium }
         GridLayout {
             Layout.fillWidth: true
             Layout.leftMargin: 14; Layout.rightMargin: 14; Layout.topMargin: 6

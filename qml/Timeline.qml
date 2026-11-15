@@ -84,12 +84,12 @@ Item {
             delegate: Item {
                 required property double modelData
                 x: tl.xFor(modelData)
-                Rectangle { width: 1; height: 5; y: 11; color: Theme.lineStrong }
+                Rectangle { width: 1; height: 4; y: 12; color: Theme.ink4 }
                 Text {
                     x: 4; y: -1
                     visible: parent.x + 4 + implicitWidth < ruler.width
                     text: ruler.step < 1 ? App.formatClock(modelData) + "." + Math.round((modelData % 1) * 10) % 10 : App.formatClock(modelData)
-                    color: Theme.ink3; font.pixelSize: Theme.fontTiny; font.family: Theme.mono
+                    color: Theme.ink3; font.pixelSize: Theme.fontTiny
                 }
             }
         }
@@ -100,15 +100,14 @@ Item {
         id: track
         x: 12; y: 24
         width: parent.width - 24; height: 48
-        radius: 5
-        color: tl.overlay ? Qt.rgba(0, 0, 0, 0.45) : Theme.bg
-        border.color: Theme.line
+        radius: 4
+        color: tl.overlay ? Qt.rgba(0, 0, 0, 0.5) : Theme.well
         clip: true
 
         WaveformItem {
             anchors.fill: parent; anchors.topMargin: 4; anchors.bottomMargin: 4
             viewStart: tl.viewStart; viewEnd: tl.viewEnd
-            color: "#8a93a0"; peakColor: "#3d434c"
+            color: "#7e8696"; peakColor: "#353a45"
             visible: hasData
         }
         Text {
@@ -121,7 +120,7 @@ Item {
         Rectangle {
             width: Math.max(0, Math.min(track.width, tl.xFor(tl.mpv.position)))
             height: parent.height
-            color: Qt.rgba(0.31, 0.55, 1, 0.13)
+            color: Qt.rgba(1, 1, 1, 0.035)
         }
         // in/out range
         Rectangle {
@@ -132,16 +131,16 @@ Item {
             x: tl.xFor(a)
             width: Math.max(2, tl.xFor(b) - tl.xFor(a))
             height: parent.height
-            color: Qt.rgba(0.31, 0.55, 1, 0.16)
+            color: Theme.accentSoft
             Rectangle { visible: App.inPoint >= 0; width: 2; height: parent.height; color: Theme.accent }
             Rectangle { visible: App.outPoint >= 0; x: parent.width - 2; width: 2; height: parent.height; color: Theme.accent }
             Rectangle {
                 visible: App.inPoint >= 0 && App.outPoint > App.inPoint && parent.width > lenText.implicitWidth + 16
                 anchors.horizontalCenter: parent.horizontalCenter
                 y: parent.height - height - 3
-                width: lenText.implicitWidth + 10; height: 15; radius: 3
-                color: Qt.rgba(0.31, 0.55, 1, 0.85)
-                Text { id: lenText; anchors.centerIn: parent; text: App.formatClock(range.b - range.a) + (range.b - range.a < 60 ? " · " + (range.b - range.a).toFixed(1) + " s" : ""); color: "white"; font.pixelSize: Theme.fontTiny; font.family: Theme.mono }
+                width: lenText.implicitWidth + 12; height: 16; radius: 4
+                color: Theme.popup; border.color: Theme.lineStrong
+                Text { id: lenText; anchors.centerIn: parent; text: App.formatClock(range.b - range.a) + (range.b - range.a < 60 ? " · " + (range.b - range.a).toFixed(1) + " s" : ""); color: Theme.ink; font.pixelSize: Theme.fontTiny; font.weight: Font.Medium }
             }
         }
         // hover line
@@ -149,13 +148,13 @@ Item {
             visible: area.containsMouse && !area.pressed && tl.dur > 0
             x: area.mouseX
             width: 1; height: parent.height
-            color: Qt.rgba(1, 1, 1, 0.35)
+            color: Qt.rgba(1, 1, 1, 0.28)
         }
         // playhead
         Rectangle {
             x: tl.xFor(tl.mpv.position) - 1
             width: 2; height: parent.height
-            color: "#ffffff"
+            color: Theme.ink
             visible: tl.dur > 0 && x >= -2 && x <= track.width
         }
     }
@@ -177,12 +176,12 @@ Item {
                 x: tl.xFor(time) - 7
                 width: 14; height: parent.height
                 visible: x > -14 && x < parent.width + 14
-                Rectangle { x: 6; width: 2; height: parent.height; color: Theme.kindColor(mk.kind); opacity: mh.hovered ? 1 : 0.75 }
+                Rectangle { x: 6; width: 2; height: parent.height; color: Theme.kindColor(mk.kind); opacity: mh.hovered ? 1 : 0.7 }
                 Rectangle {
-                    x: 2; y: 0
-                    width: 10; height: 10; radius: 2
+                    x: 3; y: 0
+                    width: 8; height: 8; radius: 2
                     color: Theme.kindColor(mk.kind)
-                    border.width: mh.hovered ? 2 : 0; border.color: "white"
+                    border.width: mh.hovered ? 1.5 : 0; border.color: Theme.ink
                 }
                 HoverHandler { id: mh; cursorShape: Qt.PointingHandCursor }
                 TapHandler { onTapped: { tl.mpv.paused = true; tl.mpv.seekTo(mk.time, true) } }
@@ -215,7 +214,7 @@ Item {
                 x: handle.isIn ? 1 : 5
                 y: track.height - 14
                 width: 4; height: 12; radius: 2
-                color: hh.hovered || drag.active ? "white" : Theme.accent
+                color: hh.hovered || drag.active ? Theme.ink : Theme.accent
             }
             HoverHandler { id: hh; cursorShape: Qt.SizeHorCursor }
             DragHandler {
@@ -245,9 +244,9 @@ Item {
     Rectangle {
         readonly property double px: track.x + tl.xFor(tl.mpv.position)
         visible: tl.dur > 0 && px >= track.x - 1 && px <= track.x + track.width + 1
-        x: px - 6; y: track.y - 8
-        width: 12; height: 8; radius: 2
-        color: "#ffffff"
+        x: px - 5; y: track.y - 7
+        width: 10; height: 7; radius: 2
+        color: Theme.ink
     }
 
     // zoom scrollbar
@@ -274,8 +273,8 @@ Item {
         height: hasThumb ? 109 + 26 : 26
         x: Math.max(4, Math.min(tl.width - width - 4, track.x + area.mouseX - width / 2))
         y: track.y - height - 12
-        radius: 7
-        color: "#f21b1d21"
+        radius: Theme.radiusMd
+        color: Theme.popup
         border.color: Theme.lineStrong
         z: 10
         Image {
@@ -292,7 +291,7 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom; anchors.bottomMargin: 5
             text: tl.fmt(preview.t)
-            color: Theme.ink; font.pixelSize: Theme.fontSmall; font.family: Theme.mono
+            color: Theme.ink; font.pixelSize: Theme.fontSmall; font.weight: Font.Medium
         }
     }
 

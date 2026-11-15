@@ -48,12 +48,12 @@ Item {
                 visible: !field.visible
                 text: g.mpv.loaded ? g.fmt(g.mpv.position) : (g.mpv.hasVideo ? "00:00:00:00" : "0:00")
                 color: g.mpv.loaded ? (hov.hovered ? "#ffffff" : Theme.ink) : Theme.ink3
-                font.pixelSize: 18; font.family: Theme.mono
+                font.pixelSize: Theme.fontDisplay; font.weight: Font.Medium
             }
             Rectangle {
                 visible: hov.hovered && !field.visible && g.mpv.loaded
-                anchors.fill: shown; anchors.margins: -3
-                radius: 4; color: "transparent"; border.color: Theme.lineStrong
+                anchors.fill: shown; anchors.margins: -4; anchors.leftMargin: -6; anchors.rightMargin: -6
+                radius: 4; color: Theme.hover; z: -1
             }
             TextField {
                 id: field
@@ -62,10 +62,10 @@ Item {
                 x: -6
                 width: 170; height: 28
                 leftPadding: 6; rightPadding: 6; topPadding: 0; bottomPadding: 0
-                font.pixelSize: 16; font.family: Theme.mono
+                font.pixelSize: 17; font.weight: Font.Medium
                 color: Theme.ink
-                selectByMouse: true; selectionColor: Theme.accent
-                background: Rectangle { radius: 4; color: Theme.bg; border.color: Theme.accent }
+                selectByMouse: true; selectionColor: Theme.accentFill; selectedTextColor: "#ffffff"
+                background: Rectangle { radius: 4; color: Theme.well; border.color: Theme.accent }
                 onAccepted: g.finish(true)
                 onActiveFocusChanged: if (!activeFocus) g.finish(false)
                 Keys.onEscapePressed: g.finish(false)
@@ -80,7 +80,7 @@ Item {
                      : (g.mpv.hasVideo && g.mpv.fps > 0
                         ? "Frame " + g.mpv.frame + "  ·  " + App.formatClock(g.mpv.duration)
                         : "of " + App.formatClock(g.mpv.duration)))
-            color: Theme.ink3; font.pixelSize: Theme.fontSmall; font.family: Theme.mono
+            color: Theme.ink3; font.pixelSize: Theme.fontSmall
         }
     }
 }
