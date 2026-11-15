@@ -81,6 +81,16 @@ so it opens practically any video or audio format, and uses a modern **Qt 6** in
 - **Transcript**: runs on your own computer with whisper.cpp (it downloads a speech model the first time).
   Click a line to jump there, search it, or save it as SRT subtitles or plain text.
 
+### Downloading
+- **Download from YouTube** (Ctrl + D, or the download button in the header): paste a link, pick a format
+  and a resolution. Slate takes the highest resolution, frame rate and audio quality the video has and joins
+  them without re-encoding wherever the format allows.
+- Video as **MP4, MKV, WebM, MOV or AVI**, or audio only as **MP3, M4A, WAV, FLAC, Opus or OGG**.
+- An option makes MP4 files open in any editing app (H.264 and AAC): YouTube's H.264 stream is used when it
+  has one at the chosen size, otherwise the video is converted at a visually lossless setting.
+- Downloads carry on in the background while you review; the header shows the progress, and the file opens in
+  Slate when it's done. Most other video sites work too.
+
 ### Exporting
 - **Cut In to Out** losslessly (instant, no quality loss) or frame-exact (re-encoded).
 - **Markers** as an EDL for DaVinci Resolve, as CSV, or copied as **YouTube chapters** (checked against YouTube's rules).
@@ -164,6 +174,7 @@ These are the defaults. Every one can be changed in **Settings → Shortcuts**, 
 | Ctrl + C | Copy the current frame |
 | PgUp / PgDn | Previous / next clip in the folder |
 | Ctrl + O, Ctrl + Shift + O, Ctrl + U | Open file, folder, URL |
+| Ctrl + D | Download from YouTube |
 | Ctrl + = / Ctrl + - / Ctrl + 0 | Zoom the timeline in / out / show all |
 | Z | Zoom the picture to 200% / back to fit |
 | G | Crop guide on or off |
@@ -256,6 +267,8 @@ docs/screenshots/  images used in this README
   terminal to see mpv's log. Hardware decoding can be turned off in **Settings → Playback**.
 - **Custom mpv settings.** Your own `mpv.conf` and scripts go in the folder shown in **Settings → Playback**.
 - **Transcription does nothing.** The first run downloads a speech model, so it needs an internet connection once.
+- **A YouTube download fails.** Slate keeps yt-dlp up to date by itself (once a day), which fixes most
+  failures after YouTube changes something. Age-restricted and private videos can't be downloaded.
 - **Audio drifts in your editor.** Check the **Info** tab: variable frame rate footage is flagged there.
   Re-encoding it to a constant frame rate before editing fixes the drift.
 

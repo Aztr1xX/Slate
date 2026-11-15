@@ -3,6 +3,7 @@
 #include "media.h"
 #include "transcript.h"
 #include "updater.h"
+#include "downloader.h"
 #include "icons.h"
 #include "visuals.h"
 #include <QTest>
@@ -29,6 +30,7 @@
 #include <QQuickWindow>
 #include <QSGRendererInterface>
 #include <QTimer>
+#include <QProcess>
 #include <clocale>
 #include <cstdio>
 #include <functional>
@@ -70,6 +72,105 @@ public:
             return !Media::toolPath(QStringLiteral("ffmpeg")).isEmpty() && !Media::toolPath(QStringLiteral("ffprobe")).isEmpty();
         });
 #endif
+        step("downloader: format plans", [] {}, [] {
+            const auto mkv = Downloader::plan(QStringLiteral("video"), QStringLiteral("mkv"), 0, false);
+            const auto mp4 = Downloader::plan(QStringLiteral("video"), QStringLiteral("mp4"), 1080, false);
+            const auto mov = Downloader::plan(QStringLiteral("video"), QStringLiteral("mov"), 0, false);
+            const auto edit = Downloader::plan(QStringLiteral("video"), QStringLiteral("mp4"), 0, true);
+            const auto mp3 = Downloader::plan(QStringLiteral("audio"), QStringLiteral("mp3"), 0, false);
+            const auto ogg = Downloader::plan(QStringLiteral("audio"), QStringLiteral("ogg"), 0, false);
+            return mkv.args.value(1).startsWith(QLatin1String("bv*+ba/")) && mkv.convert.isEmpty() && mkv.finalExt == QLatin1String("mkv")
+                && mp4.args.value(1).startsWith(QLatin1String("bv*[height<=1080]+ba[acodec^=mp4a]/")) && mp4.convert.isEmpty()
+                && mov.convert == QLatin1String("mov") && edit.convert == QLatin1String("mp4-edit") && edit.finalExt == QLatin1String("mp4")
+                && mp3.args.contains(QStringLiteral("-x")) && mp3.args.contains(QStringLiteral("320K")) && mp3.finalExt == QLatin1String("mp3")
+                && ogg.args.contains(QStringLiteral("vorbis")) && ogg.finalExt == QLatin1String("ogg");
+        });
+        step("downloader: reads video info and progress", [] {}, [] {
+            const QByteArray j = R"({"title":"Test","channel":"Chan","duration":61,"extractor_key":"Youtube",
+                "thumbnails":[{"url":"https://i.ytimg.com/vi/x/hq.webp","preference":1},{"url":"https://i.ytimg.com/vi/x/maxres.jpg?a=1","preference":0,"width":1280}],
+                "formats":[{"format_id":"sb0","vcodec":"none","acodec":"none","ext":"mhtml"},
+                {"format_id":"251","vcodec":"none","acodec":"opus","abr":135.2,"filesize":1000000},
+                {"format_id":"140","vcodec":"none","acodec":"mp4a.40.2","abr":129.5,"filesize":990000},
+                {"format_id":"137","vcodec":"avc1.640028","acodec":"none","height":1080,"width":1920,"fps":30,"filesize":5000000},
+                {"format_id":"248","vcodec":"vp9","acodec":"none","height":1080,"width":1920,"fps":30,"filesize":4000000},
+                {"format_id":"315","vcodec":"vp9","acodec":"none","height":2160,"width":3840,"fps":60,"dynamic_range":"SDR","filesize":90000000},
+                {"format_id":"18","vcodec":"avc1.42001E","acodec":"mp4a.40.2","height":360,"width":640,"fps":30}]})";
+            QString err;
+            QHash<QString, double> sizes;
+            const QVariantMap i = Downloader::parseInfo(j, &err, &sizes);
+            const QVariantList q = i.value(QStringLiteral("qualities")).toList();
+            Downloader::Progress pr;
+            const bool p1 = Downloader::parseProgress(QStringLiteral("SLATE|downloading|315|4500000|NA|90000000|5242880.0|17"), &pr);
+            QString perr;
+            Downloader::parseInfo(R"({"_type":"playlist","entries":[]})", &perr);
+            return err.isEmpty() && q.size() == 3 && q[0].toMap().value(QStringLiteral("label")) == QLatin1String("2160p60")
+                && q[0].toMap().value(QStringLiteral("tag")) == QLatin1String("4K") && q[1].toMap().value(QStringLiteral("codec")) == QLatin1String("VP9")
+                && i.value(QStringLiteral("bestAudio")) == QLatin1String("Opus 135 kbps")
+                && i.value(QStringLiteral("thumbnail")).toString().endsWith(QLatin1String("maxres.jpg?a=1")) && sizes.value(QStringLiteral("315")) == 90000000
+                && p1 && pr.formatId == QLatin1String("315") && pr.total == 90000000 && pr.done == 4500000 && pr.eta == 17
+                && !perr.isEmpty()
+                && Downloader::friendlyError(QStringLiteral("ERROR: [youtube] abc: Private video. Sign in")).contains(QLatin1String("private"));
+        });
+        if (qEnvironmentVariableIsSet("SLATE_TEST_DOWNLOAD")) {
+            // Real downloads through yt-dlp: best quality MP4, an MP3, and a converted MOV.
+            static QString dlDir = QDir::tempPath() + QStringLiteral("/slate-dl-test");
+            QDir(dlDir).removeRecursively();
+            auto *d = Downloader::instance();
+            softStep("download: look up the video", [this, d] {
+                m_app->setSetting(QStringLiteral("dl/openWhenDone"), false); // keep the clip under test open
+                d->setFolder(dlDir);
+                d->lookUp(qEnvironmentVariable("SLATE_TEST_DOWNLOAD"));
+            }, [this, d] {
+                if (d->state() != QLatin1String("ready")) return false;
+                const QVariantMap i = d->info();
+                say(QStringLiteral("      \"%1\": best %2 + %3, %4 resolutions").arg(i.value(QStringLiteral("title")).toString(), i.value(QStringLiteral("bestVideo")).toString(),
+                        i.value(QStringLiteral("bestAudio")).toString()).arg(i.value(QStringLiteral("qualities")).toList().size()));
+                return true;
+            }, 240000);
+            softStep("download: best quality MP4", [d] { d->start(QStringLiteral("video"), QStringLiteral("mp4"), 0, false); }, [this, d] {
+                if (d->state() != QLatin1String("done")) return false;
+                int h = 0;
+                const QString s = streamsOf(d->outputFile(), &h);
+                const int best = d->info().value(QStringLiteral("qualities")).toList().value(0).toMap().value(QStringLiteral("height")).toInt();
+                const QString label = d->info().value(QStringLiteral("qualities")).toList().value(0).toMap().value(QStringLiteral("label")).toString();
+                say(QStringLiteral("      %1: %2 (%3 MB); best on offer %4").arg(QFileInfo(d->outputFile()).fileName(), s)
+                        .arg(QFileInfo(d->outputFile()).size() / 1e6, 0, 'f', 1).arg(label));
+                return d->outputFile().endsWith(QLatin1String(".mp4")) && h > 0 && s.contains(QLatin1String("audio"))
+                    && (best == 0 || label.startsWith(QString::number(h)));
+            }, 600000);
+            softStep("download: MP3 audio", [d] { d->start(QStringLiteral("audio"), QStringLiteral("mp3"), 0, false); }, [this, d] {
+                if (d->state() != QLatin1String("done")) return false;
+                const QString s = streamsOf(d->outputFile());
+                say(QStringLiteral("      %1: %2").arg(QFileInfo(d->outputFile()).fileName(), s));
+                return d->outputFile().endsWith(QLatin1String(".mp3")) && s.contains(QLatin1String("mp3 audio"));
+            }, 300000);
+            softStep("download: MOV for editing (smallest size, converted)", [d] {
+                const QVariantList q = d->info().value(QStringLiteral("qualities")).toList();
+                d->start(QStringLiteral("video"), QStringLiteral("mov"), q.isEmpty() ? 0 : q.last().toMap().value(QStringLiteral("height")).toInt(), false);
+            }, [this, d] {
+                if (d->state() != QLatin1String("done")) return false;
+                const QString s = streamsOf(d->outputFile());
+                say(QStringLiteral("      %1: %2").arg(QFileInfo(d->outputFile()).fileName(), s));
+                return d->outputFile().endsWith(QLatin1String(".mov")) && s.startsWith(QLatin1String("h264")) && s.contains(QLatin1String("aac audio"));
+            }, 600000);
+            if (qEnvironmentVariableIsSet("SLATE_TEST_ALL_FORMATS")) {
+                const QList<QStringList> all{ { "video", "mkv" }, { "video", "webm" }, { "video", "avi" }, { "video", "mp4", "edit" },
+                                              { "audio", "m4a" }, { "audio", "wav" }, { "audio", "flac" }, { "audio", "opus" }, { "audio", "ogg" } };
+                for (const QStringList &c : all) {
+                    softStep(QStringLiteral("download: %1 %2%3").arg(c[0], c[1], c.size() > 2 ? QStringLiteral(" for editing") : QString()),
+                             [d, c] { d->start(c[0], c[1], 0, c.size() > 2); }, [this, d, c] {
+                        if (d->state() != QLatin1String("done")) return false;
+                        const QString s = streamsOf(d->outputFile());
+                        say(QStringLiteral("      %1: %2").arg(QFileInfo(d->outputFile()).fileName(), s));
+                        return d->outputFile().endsWith(QLatin1Char('.') + c[1]) && s.contains(QLatin1String("audio"))
+                            && (c[0] == QLatin1String("audio") ? !s.contains(QLatin1Char('x')) : s.contains(QLatin1Char('x')))
+                            && (c.size() < 3 || s.startsWith(QLatin1String("h264")));
+                    }, 600000);
+                }
+            }
+            step("download: settings restored", [this, d] { d->resetFolder(); d->reset(); m_app->setSetting(QStringLiteral("dl/openWhenDone"), true); },
+                 [d] { return d->state() == QLatin1String("idle"); });
+        }
         step("audio waveform analysed", [] {}, [this] {
             return Media::instance()->waveformReady() && Media::instance()->peaks().size() > m_mpv->duration() * Media::kBinsPerSecond * 0.9;
         }, 30000);
@@ -200,10 +301,33 @@ private:
                 f.write(line.toUtf8() + '\n');
         }
     }
-    struct Step { QString name; std::function<void()> act; std::function<bool()> check; int timeout; };
+    struct Step { QString name; std::function<void()> act; std::function<bool()> check; int timeout; bool soft = false; };
     void step(const QString &n, std::function<void()> a, std::function<bool()> c, int timeout = 6000)
     {
         m_steps.push_back({ n, std::move(a), std::move(c), timeout });
+    }
+    // A step that depends on the internet (YouTube): reported as WARN, not a failure, and it gives
+    // up as soon as the downloader reports an error.
+    void softStep(const QString &n, std::function<void()> a, std::function<bool()> c, int timeout)
+    {
+        m_steps.push_back({ n, std::move(a), std::move(c), timeout, true });
+    }
+    // "1920x1080 vp9 / opus" for the first video and audio stream of a file.
+    static QString streamsOf(const QString &file, int *height = nullptr)
+    {
+        QProcess p;
+        p.start(Media::toolPath(QStringLiteral("ffprobe")), { QStringLiteral("-v"), QStringLiteral("error"), QStringLiteral("-show_entries"),
+                QStringLiteral("stream=codec_type,codec_name,width,height,avg_frame_rate"), QStringLiteral("-of"), QStringLiteral("csv=p=0"), file });
+        p.waitForFinished(20000);
+        QStringList parts;
+        for (const QString &l : QString::fromUtf8(p.readAllStandardOutput()).split(QLatin1Char('\n'), Qt::SkipEmptyParts)) {
+            const QStringList f = l.trimmed().split(QLatin1Char(','));
+            if (f.size() >= 2 && f[1] == QLatin1String("video") && f.size() >= 4) {
+                parts << QStringLiteral("%1 %2x%3 %4fps").arg(f[0], f[2], f[3], f.value(4));
+                if (height) *height = qMin(f[2].toInt(), f[3].toInt());
+            } else if (f.size() >= 2) parts << f[0] + QLatin1Char(' ') + f[1];
+        }
+        return parts.join(QStringLiteral(" + "));
     }
     void next()
     {
@@ -222,6 +346,8 @@ private:
         Step &s = m_steps[m_i];
         if (s.check()) {
             say(QStringLiteral("PASS  %1  (%2 ms)").arg(s.name).arg(m_clock.elapsed()));
+        } else if (s.soft && (m_clock.elapsed() > s.timeout || Downloader::instance()->state() == QLatin1String("error"))) {
+            say(QStringLiteral("WARN  %1  (%2 ms, not counted as a failure) %3").arg(s.name).arg(m_clock.elapsed()).arg(Downloader::instance()->error()));
         } else if (m_clock.elapsed() > s.timeout) {
             say(QStringLiteral("FAIL  %1  [pos=%2 frame=%3 fps=%4 msg=%5]").arg(s.name).arg(m_mpv->position(), 0, 'f', 3)
                     .arg(m_mpv->frame()).arg(m_mpv->fps(), 0, 'f', 3).arg(m_lastMsg));
@@ -272,7 +398,19 @@ public:
             { QStringLiteral("08-shortcuts"), [this] { call("openSettings", 4); }, 800 },
             { QStringLiteral("09-windows"), [this] { call("openSettings", 5); }, 800 },
             { QStringLiteral("09b-about-updates"), [this] { if (qEnvironmentVariableIsSet("SLATE_FAKE_UPDATE")) Updater::instance()->check(false); call("openSettings", 6); }, 800 },
-            { QStringLiteral("10-fullscreen"), [this] { QMetaObject::invokeMethod(m_win, "closeSettings"); QMetaObject::invokeMethod(m_win, "toggleFullscreen"); }, 1500 },
+            { QStringLiteral("09c-download"), [this] {
+                  QMetaObject::invokeMethod(m_win, "closeSettings");
+                  if (QObject *dd = m_win->findChild<QObject *>(QStringLiteral("downloadDialog"))) dd->setProperty("presetUrl", qEnvironmentVariable("SLATE_TOUR_DOWNLOAD"));
+                  QMetaObject::invokeMethod(m_win, "openDownloads");
+              }, 6000 },
+            { QStringLiteral("09d-download-audio"), [this] {
+                  if (QObject *dd = m_win->findChild<QObject *>(QStringLiteral("downloadDialog"))) dd->setProperty("kind", QStringLiteral("audio"));
+              }, 800 },
+            { QStringLiteral("09e-download-progress"), [this] {
+                  if (QObject *dd = m_win->findChild<QObject *>(QStringLiteral("downloadDialog"))) { dd->setProperty("kind", QStringLiteral("video")); QMetaObject::invokeMethod(dd, "begin"); }
+              }, 2500 },
+            { QStringLiteral("09f-download-header"), [this] { QMetaObject::invokeMethod(m_win, "closeDownloads"); }, 1500 },
+            { QStringLiteral("10-fullscreen"), [this] { Downloader::instance()->cancel(); QMetaObject::invokeMethod(m_win, "toggleFullscreen"); }, 1500 },
         };
         next();
     }
@@ -368,6 +506,7 @@ int main(int argc, char *argv[])
     qmlRegisterSingletonInstance("Slate", 1, 0, "Media", Media::instance());
     qmlRegisterSingletonInstance("Slate", 1, 0, "Transcript", Transcript::instance());
     qmlRegisterSingletonInstance("Slate", 1, 0, "Updater", Updater::instance());
+    qmlRegisterSingletonInstance("Slate", 1, 0, "Downloader", Downloader::instance());
 
     QLocalServer server;
     if (single) {

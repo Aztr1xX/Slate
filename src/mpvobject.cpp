@@ -1,4 +1,5 @@
 #include "mpvobject.h"
+#include "downloader.h"
 #include <QDir>
 #include <QClipboard>
 #include <QGuiApplication>
@@ -223,15 +224,9 @@ MpvObject::MpvObject(QQuickItem *parent) : QQuickFramebufferObject(parent)
     opt("screenshot-format", "png");
     opt("ytdl", "yes");               // plays URLs when yt-dlp is installed
     {
-        // Prefer the yt-dlp that ships next to Slate.exe.
-        const QString ytdlp = QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral(
-#ifdef Q_OS_WIN
-            "yt-dlp.exe"
-#else
-            "yt-dlp"
-#endif
-            ));
-        if (QFileInfo::exists(ytdlp))
+        // The self-updating yt-dlp from the downloader, else the one that ships next to Slate.exe.
+        const QString ytdlp = Downloader::ytdlpPath();
+        if (!ytdlp.isEmpty())
             mpv_set_option_string(m_mpv, "script-opts", ("ytdl_hook-ytdl_path=" + QDir::toNativeSeparators(ytdlp)).toUtf8().constData());
     }
     opt("demuxer-max-back-bytes", "150MiB"); // cache behind playhead makes stepping backwards faster

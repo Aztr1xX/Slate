@@ -19,6 +19,7 @@ Item {
             spacing: 8
             Btn { primary: true; glyph: "file"; text: "Open file"; keys: "Ctrl+O"; tip: "Open a video or audio file"; implicitHeight: 36; onClicked: es.win.openFileDialog() }
             Btn { flat: false; glyph: "open"; text: "Open folder"; keys: "Ctrl+Shift+O"; tip: "Review every clip in a folder"; implicitHeight: 36; onClicked: es.win.openFolderDialog() }
+            Btn { flat: false; glyph: "download"; text: "Download video"; keys: "Ctrl+D"; tip: "Download from YouTube at the best quality"; implicitHeight: 36; onClicked: es.win.openDownloads() }
         }
 
         RowLayout {

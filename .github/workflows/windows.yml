@@ -97,6 +97,10 @@ jobs:
             .\dist\ffmpeg.exe -hide_banner -loglevel error -y -f lavfi -i "testsrc2=size=1280x720:rate=30:duration=30" -f lavfi -i "sine=frequency=440:duration=30" -c:v libx264 -g 60 -pix_fmt yuv420p -c:a aac -shortest "selftest-media\clip $n.mp4"
           }
           $env:QT_OPENGL = "software"
+          # Real YouTube downloads through the packaged downloader (a few seconds of a 4K60 video, so it stays quick).
+          # These steps only warn if YouTube refuses the runner.
+          $env:SLATE_TEST_DOWNLOAD = "https://www.youtube.com/watch?v=aqz-KE-bpKQ"
+          $env:SLATE_TEST_SECTION = "6"
           $p = Start-Process -FilePath dist\Slate.exe -ArgumentList '--selftest','"selftest-media\clip 1.mp4"','--screenshot','selftest.png' -Wait -PassThru
           if (Test-Path selftest.png.log) { Get-Content selftest.png.log }
           exit $p.ExitCode
