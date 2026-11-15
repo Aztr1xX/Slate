@@ -150,6 +150,12 @@ QProcess *Downloader::newProcess()
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     env.insert(QStringLiteral("PYTHONUTF8"), QStringLiteral("1"));        // titles with any characters
     env.insert(QStringLiteral("PYTHONIOENCODING"), QStringLiteral("utf-8"));
+    if (qEnvironmentVariableIsSet("SLATE_TEST_ASCII_IO")) {
+        // Self-test only: act like a Windows console that can't show emoji (yt-dlp ignores the
+        // settings above when it is the PyInstaller build).
+        env.insert(QStringLiteral("PYTHONUTF8"), QStringLiteral("0"));
+        env.insert(QStringLiteral("PYTHONIOENCODING"), QStringLiteral("ascii"));
+    }
     p->setProcessEnvironment(env);
     connect(p, &QProcess::finished, p, &QObject::deleteLater);
     return p;
@@ -317,7 +323,10 @@ void Downloader::afterTools()
 
 QStringList Downloader::commonArgs() const
 {
-    QStringList a{ QStringLiteral("--ignore-config"), QStringLiteral("--no-playlist"), QStringLiteral("--color"), QStringLiteral("never") };
+    // --encoding utf-8: without it yt-dlp prints in the console's code page and silently drops
+    // characters it can't show (an emoji in the title), so the file name it reports is wrong.
+    QStringList a{ QStringLiteral("--ignore-config"), QStringLiteral("--no-playlist"), QStringLiteral("--color"), QStringLiteral("never"),
+                   QStringLiteral("--encoding"), QStringLiteral("utf-8") };
     const QString ff = Media::toolPath(QStringLiteral("ffmpeg"));
     if (!ff.isEmpty()) a << QStringLiteral("--ffmpeg-location") << QDir::toNativeSeparators(QFileInfo(ff).absolutePath());
     // A JavaScript runtime unlocks YouTube's full format list (all resolutions).
@@ -372,7 +381,12 @@ void Downloader::runProbe()
         if (job != m_job) return;
         const QByteArray out = p->readAllStandardOutput();
         const QString err = QString::fromUtf8(p->readAllStandardError());
-        if (st != QProcess::NormalExit || code != 0 || out.trimmed().isEmpty()) { fail(friendlyError(err)); return; }
+        if (st != QProcess::NormalExit || code != 0 || out.trimmed().isEmpty()) {
+            QString why = friendlyError(err);
+            if (why.isEmpty()) why = QStringLiteral("Couldn't read this link (yt-dlp exit code %1).").arg(code);
+            fail(why);
+            return;
+        }
         QString perr;
         QVariantMap info = parseInfo(out, &perr, &m_sizes);
         if (!perr.isEmpty()) { fail(perr); return; }
@@ -633,14 +647,28 @@ void Downloader::start(const QString &kind, const QString &format, int maxHeight
     connect(p, &QProcess::errorOccurred, this, [this, p, job](QProcess::ProcessError e) {
         if (e == QProcess::FailedToStart && job == m_job) { p->deleteLater(); fail(QStringLiteral("Couldn't start yt-dlp.")); }
     });
+    m_expectedName = name;
+    m_log = QStringLiteral("yt-dlp %1\n\n").arg(args.join(QLatin1Char(' ')));
     connect(p, &QProcess::finished, this, [this, job](int code, QProcess::ExitStatus st) {
         if (job != m_job) return;
         onDownloadOutput();
-        if (st == QProcess::NormalExit && code == 0 && !m_output.isEmpty() && QFileInfo::exists(m_output)) {
-            if (m_plan.convert.isEmpty()) complete(m_output);
-            else startConvert(m_output);
+        writeLog(code, st);
+        if (st == QProcess::NormalExit && code == 0) {
+            const QString file = findOutput();
+            if (file.isEmpty()) {
+                fail(QStringLiteral("yt-dlp finished, but Slate couldn't find the saved file in %1. Details are in %2")
+                         .arg(folderLabel(), QDir::toNativeSeparators(logPath())));
+            } else if (m_plan.convert.isEmpty()) {
+                complete(file);
+            } else {
+                startConvert(file);
+            }
+        } else if (st != QProcess::NormalExit) {
+            fail(QStringLiteral("yt-dlp stopped unexpectedly. Details are in %1").arg(QDir::toNativeSeparators(logPath())));
         } else {
-            fail(friendlyError(m_errBuf));
+            QString why = friendlyError(m_errBuf);
+            if (why.isEmpty()) why = QStringLiteral("yt-dlp stopped with exit code %1 and gave no reason.").arg(code);
+            fail(why + QStringLiteral(" Details are in %1").arg(QDir::toNativeSeparators(logPath())));
         }
     });
     p->start(exe, args);
@@ -660,6 +688,7 @@ void Downloader::onDownloadOutput()
             m_formatIds = line.mid(9).split(QLatin1Char('+'), Qt::SkipEmptyParts);
             continue;
         }
+        if (!line.startsWith(QLatin1String("SLATE|"))) m_log += line + QLatin1Char('\n');
         if (line.startsWith(QLatin1String("SLATEFILE|"))) {
             m_output = QDir::fromNativeSeparators(line.mid(10));
             continue;
@@ -863,6 +892,34 @@ QString Downloader::friendlyError(const QString &raw)
     if (low.contains(QLatin1String("unable to download")) || low.contains(QLatin1String("getaddrinfo")) || low.contains(QLatin1String("timed out")))
         return QStringLiteral("Couldn't reach the site. Check your internet connection and try again.");
     if (low.contains(QLatin1String("no space left"))) return QStringLiteral("The disk is full. Free some space or choose another folder.");
-    if (line.isEmpty()) return QStringLiteral("The download failed. Try again.");
+    if (!line.isEmpty() && !line.endsWith(QLatin1Char('.'))) line += QLatin1Char('.');
     return line;
+}
+
+QString Downloader::logPath()
+{
+    return QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + QStringLiteral("/download.log");
+}
+
+void Downloader::writeLog(int code, QProcess::ExitStatus st)
+{
+    QDir().mkpath(QFileInfo(logPath()).absolutePath());
+    QFile f(logPath());
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) return;
+    f.write((m_log + QStringLiteral("\n--- errors ---\n") + m_errBuf
+             + QStringLiteral("\n--- exit: %1%2 ---\n").arg(code).arg(st == QProcess::NormalExit ? QString() : QStringLiteral(" (crashed)"))).toUtf8());
+}
+
+QString Downloader::findOutput() const
+{
+    // The path yt-dlp printed, if it is right.
+    if (!m_output.isEmpty() && QFileInfo::exists(m_output)) return m_output;
+    // Otherwise the name Slate chose for it, with whichever extension the format ended up with.
+    const QDir dir(folder());
+    const QString want = dir.filePath(m_expectedName + QLatin1Char('.') + (m_plan.convert.isEmpty() ? m_plan.finalExt : QStringLiteral("mkv")));
+    if (QFileInfo::exists(want)) return want;
+    const QFileInfoList all = dir.entryInfoList(QDir::Files, QDir::Time);
+    for (const QFileInfo &fi : all)
+        if (fi.completeBaseName() == m_expectedName && !fi.suffix().startsWith(QLatin1String("part"))) return fi.absoluteFilePath();
+    return {};
 }

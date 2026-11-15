@@ -290,7 +290,9 @@ docs/screenshots/  images used in this README
 - **Custom mpv settings.** Your own `mpv.conf` and scripts go in the folder shown in **Settings → Playback**.
 - **Transcription does nothing.** The first run downloads a speech model, so it needs an internet connection once.
 - **A YouTube download fails.** Slate keeps yt-dlp up to date by itself (once a day), which fixes most
-  failures after YouTube changes something. Age-restricted and private videos can't be downloaded.
+  failures after YouTube changes something. Age-restricted and private videos can't be downloaded. The error
+  message says what went wrong, and the full yt-dlp output of the last download is in
+  `%LOCALAPPDATA%\Slate\Slate\download.log`.
 - **Audio drifts in your editor.** Check the **Info** tab: variable frame rate footage is flagged there.
   Re-encoding it to a constant frame rate before editing fixes the drift.
 

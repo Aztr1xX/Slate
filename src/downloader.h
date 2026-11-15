@@ -89,7 +89,9 @@ public:
     // FFmpeg arguments to turn a downloaded file into the target ("mov", "avi", "mp4-edit").
     static QStringList convertArgs(const QString &target, const QString &vcodec, const QString &acodec,
                                    const QString &in, const QString &out);
-    static QString friendlyError(const QString &raw);
+    static QString friendlyError(const QString &raw);   // "" when yt-dlp gave no reason
+    // Full output of the last download, for when something goes wrong.
+    static QString logPath();
 
 signals:
     void changed();
@@ -113,6 +115,8 @@ private:
     void startConvert(const QString &file);
     void runConvert(const QString &in, const QString &vcodec, const QString &acodec);
     void complete(const QString &file);
+    void writeLog(int code, QProcess::ExitStatus st);
+    QString findOutput() const;
     QString tempDir() const;
     static QString toolsDir();
     static QString denoPath();
@@ -133,6 +137,6 @@ private:
     QHash<QString, double> m_total;
     QString m_lineBuf, m_errBuf, m_lastErr;
     double m_duration = 0;
-    QString m_convertOut;
+    QString m_convertOut, m_expectedName, m_log;
     int m_job = 0;
 };
