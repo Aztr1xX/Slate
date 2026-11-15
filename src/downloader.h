@@ -103,6 +103,7 @@ private:
     void ensureYtdlp();
     void updateYtdlp();
     void ensureDeno();
+    void unzipDeno(const QString &zip, bool withPowerShell);
     void fetch(const QString &url, const QString &dest, const QString &what, std::function<void(bool)> done);
     QStringList commonArgs() const;
     QProcess *newProcess();

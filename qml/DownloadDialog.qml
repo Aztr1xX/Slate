@@ -170,7 +170,7 @@ Popup {
                 flat: false; text: "Paste"; glyph: "copy"; implicitHeight: 36
                 enabled: !dlg.working
                 tip: "Paste the link you copied"
-                onClicked: { const c = Downloader.clipboardUrl(); if (c) { field.text = c; dlg.lookUp() } else win.toast("There's no link on the clipboard. Copy the video's address first") }
+                onClicked: { const c = Downloader.clipboardUrl(); if (c) { field.text = c; dlg.lookUp() } else dlg.win.toast("There's no link on the clipboard. Copy the video's address first") }
             }
         }
 

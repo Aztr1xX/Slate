@@ -272,28 +272,34 @@ void Downloader::ensureDeno()
             if (!ok) { afterTools(); return; }
             m_toolsNote = QStringLiteral("Unpacking the YouTube helper");
             emit changed();
-            // tar.exe ships with Windows 10 and 11 and reads zip files.
-            QProcess *p = newProcess();
-            connect(p, &QProcess::finished, this, [this, zip](int) {
-                QFile::remove(zip);
-                m_toolsNote.clear();
-                afterTools();
-            });
-            connect(p, &QProcess::errorOccurred, this, [this, p, zip](QProcess::ProcessError e) {
-                if (e != QProcess::FailedToStart) return;
-                p->deleteLater();
-                // fall back to PowerShell
-                QProcess *q = newProcess();
-                connect(q, &QProcess::finished, this, [this, zip](int) { QFile::remove(zip); m_toolsNote.clear(); afterTools(); });
-                q->start(QStringLiteral("powershell"), { QStringLiteral("-NoProfile"), QStringLiteral("-Command"),
-                    QStringLiteral("Expand-Archive -Force -LiteralPath '%1' -DestinationPath '%2'").arg(QDir::toNativeSeparators(zip), QDir::toNativeSeparators(toolsDir())) });
-            });
-            p->start(QStringLiteral("tar"), { QStringLiteral("-xf"), QDir::toNativeSeparators(zip), QStringLiteral("-C"), QDir::toNativeSeparators(toolsDir()) });
+            unzipDeno(zip, false);
         });
         return;
     }
 #endif
     afterTools();
+}
+
+// tar.exe ships with Windows 10 and 11 and reads zip files; PowerShell is the fallback.
+void Downloader::unzipDeno(const QString &zip, bool withPowerShell)
+{
+    auto next = [this, zip, withPowerShell] {
+        if (denoPath().isEmpty() && !withPowerShell) { unzipDeno(zip, true); return; }
+        QFile::remove(zip);
+        afterTools();
+    };
+    QProcess *p = newProcess();
+    connect(p, &QProcess::finished, this, next);
+    connect(p, &QProcess::errorOccurred, this, [p, next](QProcess::ProcessError e) {
+        if (e == QProcess::FailedToStart) { p->deleteLater(); next(); }
+    });
+    if (!withPowerShell) {
+        p->start(QStringLiteral("tar"), { QStringLiteral("-xf"), QDir::toNativeSeparators(zip), QStringLiteral("-C"), QDir::toNativeSeparators(toolsDir()) });
+    } else {
+        auto quoted = [](QString path) { return QLatin1Char('\'') + QDir::toNativeSeparators(path).replace(QLatin1Char('\''), QStringLiteral("''")) + QLatin1Char('\''); };
+        p->start(QStringLiteral("powershell"), { QStringLiteral("-NoProfile"), QStringLiteral("-Command"),
+                 QStringLiteral("Expand-Archive -Force -LiteralPath %1 -DestinationPath %2").arg(quoted(zip), quoted(toolsDir())) });
+    }
 }
 
 void Downloader::afterTools()
