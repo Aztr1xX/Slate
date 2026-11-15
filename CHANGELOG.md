@@ -4,7 +4,7 @@ Every push to `main` publishes a new release named `1.1.<build number>`, and ins
 update themselves to it. Builds that only fixed the CI are left out below.
 Downloads: [Releases](https://github.com/Aztr1xX/Slate/releases).
 
-## 2026-11-15
+## 1.1.26 (2026-11-15)
 - **Download from YouTube** (Ctrl + D, the download button in the header, or "Download video" on the start
   screen). Paste a link, choose MP4, MKV, WebM, MOV or AVI, or audio only as MP3, M4A, WAV, FLAC, Opus or
   OGG, and pick a resolution. It always takes the best video and best audio streams and joins them without

@@ -7,7 +7,8 @@
 <p align="center">
   <b>A fast media player for reviewing footage before you edit it.</b><br>
   Plays almost anything, and adds the tools a YouTube editor actually reaches for:<br>
-  frame stepping, markers that drop straight into DaVinci Resolve, lossless clip cutting and loudness metering.
+  frame stepping, markers that drop straight into DaVinci Resolve, lossless clip cutting, loudness metering<br>
+  and YouTube downloads at the best quality on offer.
 </p>
 
 <p align="center">
@@ -106,6 +107,11 @@ so it opens practically any video or audio format, and uses a modern **Qt 6** in
 
 ## Screenshots
 
+<p align="center">
+  <img src="docs/screenshots/download.jpg" alt="Download from YouTube dialog with format and resolution choices" width="560"><br>
+  <b>Download from YouTube</b>: pick a format and resolution, and Slate gets the best streams on offer
+</p>
+
 | | |
 | --- | --- |
 | <img src="docs/screenshots/clips.jpg" alt="Clips panel with thumbnails and star ratings"><br>**Clips** with thumbnails and star ratings | <img src="docs/screenshots/media-info.jpg" alt="Media info panel"><br>**Media info**, including loudness and variable frame rate checks |
@@ -129,7 +135,8 @@ The installer also adds:
 - a Start menu entry (and a desktop shortcut if you tick it), and an uninstaller in Settings → Apps
 - **Open with → Slate** for video and audio files
 - **Review folder in Slate** on the folder right-click menu (Windows 11: under "Show more options")
-- `ffmpeg`, `ffprobe`, `whisper-cli` (transcription) and `yt-dlp` (URLs), so nothing else needs installing
+- `ffmpeg`, `ffprobe`, `whisper-cli` (transcription) and `yt-dlp` (URLs and downloads), so nothing else needs installing.
+  The first YouTube download also fetches Deno (about 45 MB), which yt-dlp needs to see YouTube's top resolutions
 
 Prefer not to install? Every release also has **Slate-portable.zip**: unzip it anywhere and run `Slate.exe`.
 
