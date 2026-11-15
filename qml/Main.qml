@@ -817,54 +817,54 @@ ApplicationWindow {
                             anchors.leftMargin: 8; anchors.rightMargin: 8
                             Repeater {
                                 model: [
-                                    { label: "Markers", tip: "Markers and exports", keys: "Alt+1", warn: false },
-                                    { label: "Clips", tip: "Clips in this folder", keys: "Alt+2", warn: false },
-                                    { label: "Info", tip: "Media info", keys: "Alt+3", warn: Media.probe.vfr === true },
-                                    { label: "Transcript", tip: "Transcript", keys: "Alt+4", warn: false },
-                                    { label: "Scopes", tip: "Video scopes", keys: "Alt+5", warn: false },
-                                    { label: "Audio", tip: "Audio levels", keys: "Alt+6", warn: false }
+                                    { icon: "marker", tip: "Markers and exports", keys: "Alt+1", warn: false },
+                                    { icon: "list", tip: "Clips in this folder", keys: "Alt+2", warn: false },
+                                    { icon: "info", tip: "Media info", keys: "Alt+3", warn: Media.probe.vfr === true },
+                                    { icon: "transcript", tip: "Transcript", keys: "Alt+4", warn: false },
+                                    { icon: "scope", tip: "Video scopes", keys: "Alt+5", warn: false },
+                                    { icon: "audio-track", tip: "Audio levels", keys: "Alt+6", warn: false }
                                 ]
                                 delegate: AbstractButton {
                                     id: tabBtn
                                     required property var modelData
                                     required property int index
                                     readonly property bool current: win.sideTab === index
-                                    // each tab is as wide as its label, and the spare room is shared out evenly
-                                    width: tl.implicitWidth + (tabRow.width - tabRow.labelsWidth) / 6
+                                    width: tabRow.width / 6
                                     height: tabRow.height
                                     focusPolicy: Qt.NoFocus
                                     hoverEnabled: true
                                     onClicked: win.sideTab = index
                                     background: Item {
                                         Rectangle {
+                                            anchors.centerIn: parent
+                                            width: 34; height: 30; radius: Theme.radius
+                                            color: tabBtn.hovered && !tabBtn.current ? Theme.hover : "transparent"
+                                            Behavior on color { ColorAnimation { duration: Theme.fast } }
+                                        }
+                                        Rectangle {
                                             anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom
-                                            width: tl.implicitWidth + 8; height: 2; radius: 1
+                                            width: 22; height: 2; radius: 1
                                             color: Theme.accent
                                             opacity: tabBtn.current ? 1 : 0
                                             Behavior on opacity { NumberAnimation { duration: Theme.fast } }
                                         }
                                     }
                                     contentItem: Item {
-                                        Text {
-                                            id: tl
+                                        Icon {
+                                            id: ti
                                             anchors.centerIn: parent
-                                            text: tabBtn.modelData.label
+                                            name: tabBtn.modelData.icon; size: 18
                                             color: tabBtn.current ? Theme.ink : (tabBtn.hovered ? Theme.ink2 : Theme.ink3)
-                                            font.pixelSize: Theme.fontLabel; font.weight: Font.Medium
-                                            Behavior on color { ColorAnimation { duration: Theme.fast } }
                                         }
                                         Rectangle {
                                             visible: tabBtn.modelData.warn
-                                            anchors.left: tl.right; anchors.leftMargin: 3; anchors.top: tl.top
-                                            width: 5; height: 5; radius: 2.5; color: Theme.warn
+                                            x: ti.x + ti.width - 2; y: ti.y - 2
+                                            width: 6; height: 6; radius: 3; color: Theme.warn
                                         }
                                     }
-                                    Tip { visible: tabBtn.hovered; text: tabBtn.modelData.tip + (tabBtn.modelData.warn ? ". Variable frame rate" : ""); keys: tabBtn.modelData.keys }
+                                    Tip { visible: tabBtn.hovered; delay: 250; text: tabBtn.modelData.tip + (tabBtn.modelData.warn ? ". Variable frame rate" : ""); keys: tabBtn.modelData.keys }
                                 }
                             }
-                            // total label width, measured once with the tab font
-                            readonly property real labelsWidth: tabMetrics.advanceWidth
-                            TextMetrics { id: tabMetrics; font.pixelSize: Theme.fontLabel; font.weight: Font.Medium; text: "MarkersClipsInfoTranscriptScopesAudio" }
                         }
                     }
                     // Each tab is built the first time it's shown, then kept.
