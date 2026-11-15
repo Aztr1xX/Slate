@@ -121,7 +121,7 @@ jobs:
       - name: Downloader test results
         if: always()
         shell: pwsh
-        run: if (Test-Path selftest.png.log) { Get-Content selftest.png.log | Select-String -Pattern "download|SELFTEST" }
+        run: if (Test-Path selftest.png.log) { Get-Content selftest.png.log | Select-String -Pattern "download|SELFTEST|best|\.mp3|\.mov" }
 
       - name: Upload installer
         if: always()
