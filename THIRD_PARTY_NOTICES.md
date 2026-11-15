@@ -9,7 +9,8 @@ Slate's own licence ([LICENSE](LICENSE)) does not apply to them.
 | [libmpv](https://mpv.io/) (LGPL build from [zhongfly/mpv-winbuild](https://github.com/zhongfly/mpv-winbuild)) | Playback engine | LGPL v2.1 or later | Dynamically linked `libmpv-2.dll` |
 | [FFmpeg](https://ffmpeg.org/) (shared build from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds)) | Waveforms, loudness, thumbnails, clip export | GPL (this build) | Separate `ffmpeg.exe` and `ffprobe.exe` programs that Slate runs |
 | [whisper.cpp](https://github.com/ggml-org/whisper.cpp) | Offline transcription | MIT | Separate `whisper-cli.exe` program that Slate runs |
-| [yt-dlp](https://github.com/yt-dlp/yt-dlp) | Opening URLs | Unlicense | Separate `yt-dlp.exe` program used by libmpv |
+| [yt-dlp](https://github.com/yt-dlp/yt-dlp) | Opening URLs, downloading videos | Unlicense | Separate `yt-dlp.exe` program used by libmpv and by Slate's downloader |
+| [Deno](https://deno.com/) | Lets yt-dlp read YouTube's full list of formats | MIT | Separate `deno.exe` program, fetched on first download into Slate's tools folder |
 | [Inno Setup](https://jrsoftware.org/isinfo.php) | Building the Windows installer | Inno Setup licence | Build tool only |
 
 Because Qt and libmpv are loaded as ordinary DLLs, they can be swapped for other builds of the same

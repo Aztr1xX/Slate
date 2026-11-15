@@ -181,6 +181,9 @@ ApplicationWindow {
     function openSettings(page) { settingsDialog.openAt(page) }
     function closeSettings() { settingsDialog.close() }
     property bool settingsOpen: settingsDialog.opened
+    function openDownloads() { if (!downloadDialog.opened) downloadDialog.open() }
+    function closeDownloads() { downloadDialog.close() }
+    property bool downloadsOpen: downloadDialog.opened
 
     // ----- keyboard -------------------------------------------------------------
     // Every action, in the order the shortcut list and command palette show them.
@@ -188,6 +191,7 @@ ApplicationWindow {
         { id: "open", category: "File", name: "Open file…", keys: ["Ctrl+O"], run: openFileDialog },
         { id: "openFolder", category: "File", name: "Open folder…", keys: ["Ctrl+Shift+O"], run: openFolderDialog },
         { id: "openUrl", category: "File", name: "Open URL…", keys: ["Ctrl+U"], run: () => urlDialog.open() },
+        { id: "download", category: "File", name: "Download from YouTube…", keys: ["Ctrl+D"], run: openDownloads },
         { id: "loadSubs", category: "File", name: "Load subtitle file…", keys: [], run: openSubtitleDialog },
         { id: "nextFile", category: "File", name: "Next clip in folder", keys: ["PgDown"], run: () => openNext(1) },
         { id: "prevFile", category: "File", name: "Previous clip in folder", keys: ["PgUp"], run: () => openNext(-1) },
@@ -269,7 +273,7 @@ ApplicationWindow {
             required property var modelData
             sequences: win.keysFor(modelData)
             context: Qt.WindowShortcut
-            enabled: !palette.opened && !settingsDialog.opened && !urlDialog.opened
+            enabled: !palette.opened && !settingsDialog.opened && !urlDialog.opened && !downloadDialog.opened
             autoRepeat: ["frameNext", "framePrev", "fwd5", "back5", "fwd1", "back1", "volUp", "volDown"].indexOf(modelData.id) >= 0
             onActivated: modelData.run()
         }
@@ -332,6 +336,14 @@ ApplicationWindow {
             if (win.visibility === Window.Minimized) win.showNormal()
             win.raise(); win.requestActivate()
             if (file) win.openMedia(file)
+        }
+    }
+    Connections {
+        target: Downloader
+        function onFinished(ok, file, message) {
+            if (!ok) { if (!downloadDialog.opened) win.toast(message); return }
+            if (App.setting("dl/openWhenDone", true)) { downloadDialog.close(); win.openMedia(file) }
+            win.toast(message, file)
         }
     }
     Connections {
@@ -465,7 +477,17 @@ ApplicationWindow {
                     }
                     MouseArea { id: sbMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: palette.open() }
                 }
+                // download chip: shows progress while a video downloads in the background
+                Btn {
+                    visible: Downloader.busy
+                    active: true
+                    glyph: "download"
+                    text: (Downloader.state === "converting" ? "Converting " : "Downloading ") + Math.round(Downloader.progress * 100) + "%"
+                    tip: Downloader.status
+                    onClicked: win.openDownloads()
+                }
                 Btn { glyph: "open"; tip: "Open file"; keys: "Ctrl+O"; onClicked: fileDialog.open() }
+                Btn { visible: !Downloader.busy; glyph: "download"; tip: "Download from YouTube"; keys: "Ctrl+D"; onClicked: win.openDownloads() }
                 Btn { glyph: "sidebar"; tip: win.panelsVisible ? "Hide side panel" : "Show side panel"; keys: "H"; active: win.panelsVisible; onClicked: win.togglePanels() }
                 Btn { glyph: "settings"; tip: "Settings"; keys: "Ctrl+,"; onClicked: settingsDialog.openAt(0) }
             }
@@ -738,5 +760,6 @@ ApplicationWindow {
         actions: win.actionList.map(a => ({ name: a.name, category: a.category, keys: win.keysLabel(a), run: a.run }))
     }
     SettingsDialog { id: settingsDialog; win: win }
-    OpenUrlDialog { id: urlDialog; onAccepted: (u) => win.openMedia(u) }
+    OpenUrlDialog { id: urlDialog; onAccepted: (u) => win.openMedia(u); onDownload: (u) => { downloadDialog.presetUrl = u; win.openDownloads() } }
+    DownloadDialog { id: downloadDialog; objectName: "downloadDialog"; win: win }
 }

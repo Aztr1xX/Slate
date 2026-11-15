@@ -7,6 +7,7 @@ import Slate
 Popup {
     id: dlg
     signal accepted(string url)
+    signal download(string url)
     modal: true
     focus: true
     anchors.centerIn: Overlay.overlay
@@ -38,6 +39,7 @@ Popup {
             Layout.alignment: Qt.AlignRight
             spacing: 8
             Btn { flat: false; text: "Cancel"; onClicked: dlg.close() }
+            Btn { flat: false; glyph: "download"; text: "Download instead"; tip: "Save it to your computer at the best quality"; enabled: field.text.trim().length > 0; onClicked: { const u = field.text.trim(); dlg.close(); dlg.download(u) } }
             Btn { primary: true; text: "Open"; enabled: field.text.trim().length > 0; onClicked: dlg.go() }
         }
     }
