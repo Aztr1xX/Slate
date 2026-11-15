@@ -109,7 +109,9 @@ public:
                 && i.value(QStringLiteral("thumbnail")).toString().endsWith(QLatin1String("maxres.jpg?a=1")) && sizes.value(QStringLiteral("315")) == 90000000
                 && p1 && pr.formatId == QLatin1String("315") && pr.total == 90000000 && pr.done == 4500000 && pr.eta == 17
                 && !perr.isEmpty()
-                && Downloader::friendlyError(QStringLiteral("ERROR: [youtube] abc: Private video. Sign in")).contains(QLatin1String("private"));
+                && Downloader::friendlyError(QStringLiteral("ERROR: [youtube] abc: Private video. Sign in")).contains(QLatin1String("private"))
+                && Downloader::friendlyError(QString()).isEmpty()
+                && Downloader::friendlyError(QStringLiteral("ERROR: Postprocessing: Conversion failed!")).contains(QLatin1String("Conversion failed"));
         });
         if (qEnvironmentVariableIsSet("SLATE_TEST_DOWNLOAD")) {
             // Real downloads through yt-dlp: best quality MP4, an MP3, and a converted MOV.
@@ -135,7 +137,11 @@ public:
                 const QString label = d->info().value(QStringLiteral("qualities")).toList().value(0).toMap().value(QStringLiteral("label")).toString();
                 say(QStringLiteral("      %1: %2 (%3 MB); best on offer %4").arg(QFileInfo(d->outputFile()).fileName(), s)
                         .arg(QFileInfo(d->outputFile()).size() / 1e6, 0, 'f', 1).arg(label));
-                return d->outputFile().endsWith(QLatin1String(".mp4")) && h > 0 && s.contains(QLatin1String("audio"))
+                // The saved name keeps the whole title, emoji included.
+                const QString title = d->info().value(QStringLiteral("title")).toString();
+                const bool named = title.contains(QRegularExpression(QStringLiteral("[<>:\"/\\\\|?*]")))
+                    || QFileInfo(d->outputFile()).completeBaseName() == title.simplified();
+                return d->outputFile().endsWith(QLatin1String(".mp4")) && h > 0 && s.contains(QLatin1String("audio")) && named
                     && (best == 0 || label.startsWith(QString::number(h)));
             }, 600000);
             softStep("download: MP3 audio", [d] { d->start(QStringLiteral("audio"), QStringLiteral("mp3"), 0, false); }, [this, d] {

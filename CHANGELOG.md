@@ -4,6 +4,14 @@ Every push to `main` publishes a new release named `1.1.<build number>`, and ins
 update themselves to it. Builds that only fixed the CI are left out below.
 Downloads: [Releases](https://github.com/Aztr1xX/Slate/releases).
 
+## 1.1.33 (2026-11-15)
+- **Fixed: YouTube downloads failing when the title has an emoji** (or other characters the Windows console
+  can't show). yt-dlp saved the file fine, but reported its name with the emoji missing, so Slate couldn't
+  find it and said "The download failed". Slate now asks yt-dlp for UTF-8 output, and if the reported name is
+  ever wrong it finds the file by the name it chose itself.
+- When a download does fail, the message now gives the real reason (yt-dlp's error, or its exit code), and the
+  full yt-dlp output of the last download is saved to `%LOCALAPPDATA%\Slate\Slate\download.log`.
+
 ## 1.1.30 (2026-11-15)
 A full pass over how Slate looks and feels, plus speed work so it runs well on older computers.
 
