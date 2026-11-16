@@ -346,7 +346,7 @@ qml/               the interface (Main.qml plus one file per panel and control)
 assets/            app icon in SVG, PNG and ICO
 packaging/windows/ installer script, icon and version resource
 tests/             unit tests (Qt Test)
-docs/screenshots/  images used in this README
+docs/screenshots/  images used in this README (footage credits in CREDITS.md)
 ```
 
 ## Troubleshooting
@@ -377,3 +377,6 @@ Slate is a personal project. Copyright © 2026 Ryan Mendes, all rights reserved.
 Slate uses Qt and libmpv under the LGPL, and ships FFmpeg, whisper.cpp and yt-dlp as separate programs under
 their own licences. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for details. See
 [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
+
+The screenshots show *Tears of Steel* (CC BY 3.0, © Blender Foundation, [mango.blender.org](https://mango.blender.org))
+and "Choice" by Admiral Bob (CC BY 3.0). See [docs/screenshots/CREDITS.md](docs/screenshots/CREDITS.md).
