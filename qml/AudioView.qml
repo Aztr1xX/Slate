@@ -1,10 +1,24 @@
 import QtQuick
 import Slate
 
-// Shown instead of a picture for audio files: large waveform, title and loudness.
+// Shown instead of a picture for audio files: large waveform (or spectrogram), title, loudness and tempo.
 Item {
     id: av
+    objectName: "audioView"
     required property var mpv
+    property bool spectrum: App.setting("spectrogram", false)
+    function ensureSpectrum() { if (spectrum && visible && App.currentFile && Tempo.spectrogram === "" ) Tempo.makeSpectrogram(App.currentFile) }
+    onSpectrumChanged: { App.setSetting("spectrogram", spectrum); ensureSpectrum() }
+    onVisibleChanged: ensureSpectrum()
+    Connections { target: Tempo; function onSpectrogramChanged() { av.ensureSpectrum() } }
+    Connections { target: av.mpv; function onFileLoaded() { av.ensureSpectrum() } }
+    Segmented {
+        anchors.top: parent.top; anchors.right: parent.right; anchors.margins: 16
+        itemWidth: 104
+        options: [{ text: "Waveform" }, { text: "Spectrogram" }]
+        current: av.spectrum ? 1 : 0
+        onPicked: i => av.spectrum = i === 1
+    }
     Column {
         anchors.centerIn: parent
         width: Math.min(parent.width - 80, 1100)
@@ -29,14 +43,28 @@ Item {
         Item {
             id: wave
             width: parent.width; height: Math.min(260, av.height * 0.4)
-            WaveformItem { id: wf; anchors.fill: parent; color: "#7e8696"; peakColor: "#353a45" }
+            WaveformItem { id: wf; anchors.fill: parent; color: "#7e8696"; peakColor: "#353a45"; visible: !av.spectrum }
+            Image {
+                anchors.fill: parent
+                visible: av.spectrum
+                source: Tempo.spectrogram
+                fillMode: Image.Stretch
+                smooth: true
+                cache: false
+            }
+            Repeater {
+                // the frequency scale is logarithmic: highs at the top, bass at the bottom
+                model: av.spectrum && Tempo.spectrogram ? [["Highs", 0.04], ["Mids", 0.45], ["Bass", 0.88]] : []
+                delegate: Text { required property var modelData; x: 6; y: wave.height * modelData[1]; text: modelData[0]; color: Qt.rgba(1, 1, 1, 0.6); font.pixelSize: Theme.fontTiny }
+            }
+            Text { anchors.centerIn: parent; visible: av.spectrum && Tempo.spectrogramBusy; text: "Drawing the spectrogram…"; color: Theme.ink3; font.pixelSize: 12 }
             Rectangle {
                 width: av.mpv.duration > 0 ? parent.width * av.mpv.position / av.mpv.duration : 0
                 height: parent.height
                 color: Qt.rgba(0.31, 0.55, 1, 0.16)
             }
             Rectangle { x: av.mpv.duration > 0 ? parent.width * av.mpv.position / av.mpv.duration - 1 : 0; width: 2; height: parent.height; color: Theme.ink }
-            Text { anchors.centerIn: parent; visible: !wf.hasData; text: Media.waveformReady ? "No audio" : "Reading audio…"; color: Theme.ink3; font.pixelSize: 12 }
+            Text { anchors.centerIn: parent; visible: !av.spectrum && !wf.hasData; text: Media.waveformReady ? "No audio" : "Reading audio…"; color: Theme.ink3; font.pixelSize: 12 }
             MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
@@ -63,6 +91,7 @@ Item {
             Stat { label: "INTEGRATED"; value: Media.loudness.integrated !== undefined ? Media.loudness.integrated.toFixed(1) + " LUFS" : "…" }
             Stat { label: "RANGE"; value: Media.loudness.range !== undefined ? Media.loudness.range.toFixed(1) + " LU" : "…" }
             Stat { label: "TRUE PEAK"; value: Media.loudness.truePeak !== undefined ? Media.loudness.truePeak.toFixed(1) + " dB" : "…" }
+            Stat { visible: Tempo.busy || (Tempo.bpm > 0 && Tempo.file === App.currentFile); label: "TEMPO"; value: Tempo.busy ? "…" : (Math.round(Tempo.bpm * 10) / 10) + " BPM" }
         }
     }
 }

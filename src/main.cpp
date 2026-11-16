@@ -4,8 +4,14 @@
 #include "transcript.h"
 #include "updater.h"
 #include "downloader.h"
+#include "resolveexport.h"
+#include "thumbnails.h"
+#include "tempo.h"
+#include "logger.h"
+#include "reviewstore.h"
 #include "icons.h"
 #include "visuals.h"
+#include <cmath>
 #include <QTest>
 
 #include <QFont>
@@ -22,6 +28,9 @@
 #include <QGuiApplication>
 #include <QIcon>
 #include <QClipboard>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QImage>
 #include <QColor>
 #include <QQmlApplicationEngine>
@@ -199,9 +208,9 @@ public:
         step("keyboard: M adds a marker", [this] { m_app->markers()->clear(); QTest::keyClick(m_win, Qt::Key_M); },
              [this] { return m_app->markers()->count() == 1; });
         step("keyboard: remapped shortcut", [this] {
-            m_app->setSetting(QStringLiteral("keys/marker"), QStringLiteral("Shift+B"));
+            m_app->setSetting(QStringLiteral("keys/marker"), QStringLiteral("Shift+Q"));
             m_win->setProperty("keymapRevision", m_win->property("keymapRevision").toInt() + 1);
-            QTimer::singleShot(100, this, [this] { QTest::keyClick(m_win, Qt::Key_B, Qt::ShiftModifier); });
+            QTimer::singleShot(100, this, [this] { QTest::keyClick(m_win, Qt::Key_Q, Qt::ShiftModifier); });
         }, [this] { return m_app->markers()->count() == 2; });
         step("restore shortcut", [this] {
             m_app->setSetting(QStringLiteral("keys/marker"), QString());
@@ -243,6 +252,46 @@ public:
             const QString err = Transcript::parseWhisperJson(j, &segs);
             return err.isEmpty() && segs.size() == 2 && segs[1].toMap().value(QStringLiteral("start")).toDouble() == 4.0
                 && Transcript::toSrt(segs).startsWith(QStringLiteral("1\n00:00:00,000 --> 00:00:02,500\nHello there."));
+        });
+        step("repeated takes found, keeper is the last full take", [] {}, [] {
+            auto L = [](const char *f, double t, const char *text) { return QVariant(QVariantMap{ { "file", QString::fromLatin1(f) }, { "start", t }, { "end", t + 2 }, { "text", QString::fromLatin1(text) } }); };
+            const QVariantList lines = {
+                L("a", 0, "Today we're going to build a desk from scratch."),
+                L("a", 3, "Today we're going to build a, um"),
+                L("a", 6, "Okay so today we are going to build a desk from scratch."),
+                L("a", 9, "First you need some wood."),
+                L("b", 0, "Then we cut it to length with the saw."),
+                L("b", 4, "Then we cut it to length with a saw."),
+                L("b", 8, "Thanks for watching."),
+            };
+            const QVariantList g = Transcript::findRepeats(lines);
+            if (g.size() != 2) return false;
+            const QVariantList a = g[0].toMap().value(QStringLiteral("members")).toList();
+            const QVariantList b = g[1].toMap().value(QStringLiteral("members")).toList();
+            return a.size() == 3 && a[2].toMap().value(QStringLiteral("keeper")).toBool() && !a[1].toMap().value(QStringLiteral("complete")).toBool()
+                && b.size() == 2 && b[1].toMap().value(QStringLiteral("keeper")).toBool();
+        });
+        step("tempo: finds the BPM and first beat (click track, kick and hats)", [] {}, [] {
+            auto track = [](double bpm, double start, bool hats) {
+                const int sr = 11025;
+                QVector<float> s(sr * 40, 0.0f);
+                quint32 seed = 1;
+                for (float &v : s) { seed = seed * 1664525u + 1013904223u; v = (int(seed >> 9) % 2000 - 1000) / 40000.0f; } // quiet noise
+                const double beat = 60.0 / bpm;
+                for (double t = start; t < 40; t += beat) {
+                    const int at = int(t * sr);
+                    for (int i = 0; i < 1200 && at + i < s.size(); ++i) s[at + i] += float(std::sin(i * (hats ? 0.05 : 0.9)) * std::exp(-i / (hats ? 300.0 : 80.0))) * 0.8f;
+                    if (hats) {
+                        const int off = int((t + beat / 2) * sr);
+                        for (int i = 0; i < 300 && off + i < s.size(); ++i) { seed = seed * 1664525u + 1013904223u; s[off + i] += (int(seed >> 9) % 2000 - 1000) / 1000.0f * float(std::exp(-i / 40.0)) * 0.35f; }
+                    }
+                }
+                double first = 0, conf = 0;
+                const double found = Tempo::detectTempo(s, sr, &first, &conf);
+                qInfo("      %.1f BPM from %.2f s: found %.2f BPM, first beat %.3f s, confidence %.2f", bpm, start, found, first, conf);
+                return qAbs(found - bpm) < 0.06 && qAbs(first - start) < 0.025;
+            };
+            return track(128, 0.3, false) && track(93, 0.5, true) && track(140, 0.1, true);
         });
         step("exact seek to 2.0 s", [this] { m_mpv->seekTo(2.0); }, [this] { return qAbs(m_mpv->position() - 2.0) < 0.02; });
         step("frame step forward", [this] { m_f0 = m_mpv->frame(); m_mpv->stepFrame(1); }, [this] { return m_mpv->frame() == m_f0 + 1; });
@@ -302,6 +351,55 @@ public:
         }, 10000);
         step("end comparison", [this] { QMetaObject::invokeMethod(m_win, "stopCompare"); },
              [this] { return m_win->findChildren<MpvObject *>().size() == 1; });
+        step("error log written", [] { qWarning("selftest: log line check"); }, [] {
+            QFile f(Logger::instance()->logFile());
+            if (!f.open(QIODevice::ReadOnly)) return false;
+            const QByteArray all = f.readAll();
+            return all.contains("started") && all.contains("selftest: log line check") && Logger::instance()->details().contains(QLatin1String("Recent log"));
+        });
+        step("music: typed tempo, beat markers, undo", [this] {
+            Tempo::instance()->load(m_file);
+            Tempo::instance()->setBpm(120);
+            Tempo::instance()->setFirstBeat(0.25);
+            m_app->markers()->clear();
+            QMetaObject::invokeMethod(m_win, "addBeatMarkers", Q_ARG(QVariant, QVariant(4)), Q_ARG(QVariant, QVariant(false)));
+        }, [this] {
+            // 30 s at 120 BPM, a marker every bar (2 s) from 0.25 s: 15 markers; undo takes them all away
+            const int n = m_app->markers()->count();
+            const bool firstOk = n > 0 && qAbs(m_app->markers()->timeAt(0) - 0.25) < 0.001;
+            m_app->undo();
+            return n == 15 && firstOk && m_app->markers()->count() == 0
+                && ReviewStore::instance().value(m_file, QStringLiteral("tempo")).toObject().value(QStringLiteral("bpm")).toDouble() == 120;
+        });
+        step("music: beat grid snaps", [this] { m_win->setProperty("beatGridOn", true); }, [this] {
+            QObject *tl = m_win->findChild<QObject *>(QStringLiteral("timeline"));
+            if (!tl) return false;
+            const QVariantList g = tl->property("beatGrid").toList();
+            return g.size() == 3 && g[0].toDouble() == 120 && tl->property("beatsShown").toBool();
+        });
+        step("music: spectrogram drawn", [this] { m_win->setProperty("beatGridOn", false); Tempo::instance()->clear(); Tempo::instance()->makeSpectrogram(m_file); },
+             [] { return !Tempo::instance()->spectrogram().isEmpty() && QImage(QUrl(Tempo::instance()->spectrogram()).toLocalFile()).width() == 2048; }, 30000);
+        step("thumbnail frames picked (sharp, spread out)", [this] { Thumbnails::instance()->find(m_file, m_mpv->duration()); }, [] {
+            const QVariantList c = Thumbnails::instance()->candidates();
+            if (c.size() < 6) return false;
+            QImage black(320, 180, QImage::Format_RGB32);
+            black.fill(Qt::black);
+            double prev = -1;
+            for (const QVariant &v : c) { const double t = v.toMap().value(QStringLiteral("time")).toDouble(); if (t <= prev) return false; prev = t; }
+            return Thumbnails::scoreFrame(black) == 0 && QImage(QUrl(c.first().toMap().value(QStringLiteral("url")).toString()).toLocalFile()).width() == 320;
+        }, 60000);
+        step("Explorer thumbnail embedded while playing; notes kept", [this] {
+            m_app->setRating(m_file, 3);
+            QMetaObject::invokeMethod(m_win, "setExplorerThumbnail", Q_ARG(QVariant, QVariant(m_file)), Q_ARG(QVariant, QVariant(7.0)));
+        }, [this] {
+            if (Thumbnails::instance()->busy() || m_win->property("swapState").isValid() && !m_win->property("swapState").isNull()) return false;
+            return m_app->currentFile() == m_file && m_mpv->loaded() && qAbs(Thumbnails::instance()->embeddedTime(m_file) - 7.0) < 0.01
+                && streamsOf(m_file).contains(QLatin1String("mjpeg")) && m_app->rating(m_file) == 3 && qAbs(m_mpv->position() - 7.0) > 0.5;
+        }, 30000);
+        step("Explorer thumbnail removed", [this] { QMetaObject::invokeMethod(m_win, "removeExplorerThumbnail", Q_ARG(QVariant, QVariant(m_file))); }, [this] {
+            if (Thumbnails::instance()->busy()) return false;
+            return Thumbnails::instance()->embeddedTime(m_file) < 0 && !streamsOf(m_file).contains(QLatin1String("mjpeg")) && m_mpv->loaded() && m_app->rating(m_file) == 3;
+        }, 30000);
         step("screenshot", [this] {
             m_mpv->setPaused(true);
             m_mpv->seekTo(5.0);
@@ -420,6 +518,10 @@ public:
                       app->markers()->add(14.5, 0, QStringLiteral("Cut the cough here"));
                       app->markers()->add(26.0, 2, QStringLiteral("Fluffed the line"));
                   }
+                  if (app->markers()->selectCount() == 0) {
+                      app->markers()->add(4.0, MarkerModel::Select, QStringLiteral("Intro, take 2"), 9.5);
+                      app->markers()->add(17.0, MarkerModel::Select, QString(), 24.0);
+                  }
                   app->setInPoint(8.0);
                   app->setOutPoint(21.5);
                   if (auto *mpv = m_win->findChild<MpvObject *>()) { mpv->setPaused(true); mpv->seekTo(12.0); }
@@ -464,12 +566,71 @@ public:
                   if (QObject *dd = m_win->findChild<QObject *>(QStringLiteral("downloadDialog"))) { dd->setProperty("kind", QStringLiteral("video")); QMetaObject::invokeMethod(dd, "begin"); }
               }, 2500 },
             { QStringLiteral("09f-download-header"), [this] { QMetaObject::invokeMethod(m_win, "closeDownloads"); }, 1500 },
-            { QStringLiteral("10-fullscreen"), [this] { Downloader::instance()->cancel(); QMetaObject::invokeMethod(m_win, "toggleFullscreen"); }, 1500 },
+            { QStringLiteral("11-resolve"), [this] { QMetaObject::invokeMethod(m_win, "openResolve"); }, 1500 },
+            { QStringLiteral("11a-resolve-custom"), [this] { QMetaObject::invokeMethod(m_win, "closeResolve"); }, 600 },
+            { QStringLiteral("12-transcript-search"), [this] {
+                  QMetaObject::invokeMethod(m_win, "closeResolve");
+                  seedTranscripts();
+                  call("showTab", 3);
+                  QTimer::singleShot(200, this, [this] {
+                      if (QObject *p = m_win->findChild<QObject *>(QStringLiteral("transcriptPanel"))) {
+                          p->setProperty("allClips", true);
+                          if (QObject *f = p->findChild<QObject *>(QStringLiteral("transcriptSearch"))) f->setProperty("text", QStringLiteral("desk"));
+                      }
+                  });
+              }, 1200 },
+            { QStringLiteral("12a-transcript-repeats"), [this] {
+                  if (QObject *p = m_win->findChild<QObject *>(QStringLiteral("transcriptPanel"))) p->setProperty("repeatsView", true);
+              }, 800 },
+            { QStringLiteral("13-thumbnails"), [this] { QMetaObject::invokeMethod(m_win, "openThumbnails"); }, 7000 },
+            { QStringLiteral("14-music"), [this] {
+                  QMetaObject::invokeMethod(m_win, "closeThumbnails");
+                  if (QObject *p = m_win->findChild<QObject *>(QStringLiteral("transcriptPanel"))) p->setProperty("repeatsView", false);
+                  Tempo::instance()->setBpm(120, QStringLiteral("tapped"));
+                  Tempo::instance()->setFirstBeat(0.25);
+                  m_win->setProperty("beatGridOn", true);
+                  call("showTab", 5);
+                  if (QObject *tl = m_win->findChild<QObject *>(QStringLiteral("timeline"))) QMetaObject::invokeMethod(tl, "zoomBy", Q_ARG(QVariant, 0.45));
+              }, 1200 },
+            { QStringLiteral("14a-audio-file"), [this] {
+                  m_win->setProperty("beatGridOn", false);
+                  const QString audio = qEnvironmentVariable("SLATE_TOUR_AUDIO");
+                  if (!audio.isEmpty()) { App()->setSetting(QStringLiteral("spectrogram"), false); QMetaObject::invokeMethod(m_win, "openMedia", Q_ARG(QVariant, QVariant(audio))); }
+              }, 5000 },
+            { QStringLiteral("14b-spectrogram"), [this] {
+                  if (QObject *a = m_win->findChild<QObject *>(QStringLiteral("audioView"))) a->setProperty("spectrum", true);
+              }, 4000 },
+            { QStringLiteral("10-fullscreen"), [this] {
+                  if (QObject *a = m_win->findChild<QObject *>(QStringLiteral("audioView"))) a->setProperty("spectrum", false);
+                  if (!qEnvironmentVariable("SLATE_TOUR_AUDIO").isEmpty()) QMetaObject::invokeMethod(m_win, "openMedia", Q_ARG(QVariant, QVariant(m_file)));
+                  Downloader::instance()->cancel(); QMetaObject::invokeMethod(m_win, "toggleFullscreen"); }, 3000 },
         };
         next();
     }
 private:
     struct Shot { QString name; std::function<void()> act; int delay; };
+    static AppController *App() { return AppController::instance(); }
+    // README screenshots of the transcript tools, without running whisper: two clips of a desk build.
+    void seedTranscripts()
+    {
+        const QStringList q = App()->queue();
+        const QList<QList<QPair<double, QString>>> lines = {
+            { { 0.5, "Today we're going to build a desk from scratch." }, { 4.0, "Today we're going to build a, um" },
+              { 6.5, "Okay, today we're going to build a desk from scratch." }, { 11.0, "First, you need some decent plywood." },
+              { 15.5, "I got mine from the hardware store down the road." }, { 20.0, "Measure twice, cut once, as they say." },
+              { 24.5, "Measure twice and cut once, as they say." } },
+            { { 0.8, "Now the legs go on the desk frame." }, { 5.0, "These brackets keep the desk from wobbling." },
+              { 10.0, "Tighten every screw by hand first." }, { 15.0, "And that's the desk finished." } } };
+        for (int i = 0; i < q.size() && i < lines.size(); ++i) {
+            QJsonArray arr;
+            for (const auto &l : lines[i]) arr.append(QJsonObject{ { "start", l.first }, { "end", l.first + 3.2 }, { "text", l.second } });
+            const QString dir = ReviewStore::instance().root() + QStringLiteral("/transcripts");
+            QDir().mkpath(dir);
+            QFile f(dir + QLatin1Char('/') + ReviewStore::instance().fingerprintFor(q[i]) + QStringLiteral(".json"));
+            if (f.open(QIODevice::WriteOnly)) f.write(QJsonDocument(arr).toJson());
+        }
+        Transcript::instance()->rescan();
+    }
     void call(const char *fn, int arg) { QMetaObject::invokeMethod(m_win, fn, Q_ARG(QVariant, QVariant(arg))); }
     void next()
     {
@@ -501,6 +662,8 @@ int main(int argc, char *argv[])
     QGuiApplication::setApplicationName(QStringLiteral("Slate"));
     QGuiApplication::setApplicationVersion(QStringLiteral(PROJECT_VERSION_STRING));
     std::setlocale(LC_NUMERIC, "C");
+    Logger::instance()->install();
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, [] { Logger::instance()->cleanExit(); });
 
     QCommandLineParser cli;
     cli.setApplicationDescription(QStringLiteral("Slate: a media player for reviewing clips"));
@@ -569,6 +732,10 @@ int main(int argc, char *argv[])
     qmlRegisterSingletonInstance("Slate", 1, 0, "Transcript", Transcript::instance());
     qmlRegisterSingletonInstance("Slate", 1, 0, "Updater", Updater::instance());
     qmlRegisterSingletonInstance("Slate", 1, 0, "Downloader", Downloader::instance());
+    qmlRegisterSingletonInstance("Slate", 1, 0, "ResolveExport", ResolveExport::instance());
+    qmlRegisterSingletonInstance("Slate", 1, 0, "Thumbnails", Thumbnails::instance());
+    qmlRegisterSingletonInstance("Slate", 1, 0, "Tempo", Tempo::instance());
+    qmlRegisterSingletonInstance("Slate", 1, 0, "Logs", Logger::instance());
 
     QLocalServer server;
     if (single) {

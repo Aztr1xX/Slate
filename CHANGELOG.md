@@ -4,6 +4,38 @@ Every push to `main` publishes a new release named `1.1.<build number>`, and ins
 update themselves to it. Builds that only fixed the CI are left out below.
 Downloads: [Releases](https://github.com/Aztr1xX/Slate/releases).
 
+## 1.1.43 (2026-11-16)
+The biggest update so far: selects, a real Resolve timeline, transcripts across a whole shoot, thumbnails,
+music tools and a crash log.
+
+- **Selects.** Press **S** at the start and end of a part worth keeping (or press S with In and Out set).
+  They show as blue bars on the timeline with draggable ends that snap to markers, In / Out and beats.
+  The Markers panel filters All / Selects / Markers, and a select can be looped, set as In / Out or exported.
+- **Send to DaVinci Resolve** (Ctrl + R). Builds an FCPXML timeline from your selects that Resolve imports with
+  File → Import → Timeline, linked to the original files. Choose the clips (this one, the folder, rated, with
+  selects), selects or whole clips, the order (folder, best rated, time shot, name, length or drag your own,
+  and reverse), handles, gaps, which markers and where, clip names, frame rate and resolution, with a live
+  preview. It can also cut every select into its own file.
+- **Undo and redo** (Ctrl + Z, Ctrl + Shift + Z / Ctrl + Y) for markers, selects, notes, ratings and In / Out.
+- **Notes follow your files.** Markers, ratings, selects and tempo are now kept by each file's contents, so
+  moving or renaming footage no longer loses them. A hidden `.slate-review.json` in each folder carries them
+  to other drives and computers (Settings → General). Existing notes move over automatically.
+- **Transcribe all and search every clip** (Ctrl + F). Transcripts run in the background while you review;
+  search results open the right clip at the right line. Right-click a line to make it a select.
+- **Repeated takes.** Lines said more than once are grouped, the last full take is picked as the best, and
+  one click marks it Good and the rest as Mistakes.
+- **Thumbnail frames** (Ctrl + T). The 12 sharpest, best-lit frames of a clip. Save as PNG or as a 1280×720
+  YouTube thumbnail, copy, or set it as the file's thumbnail in File Explorer (MP4, MOV, M4V, MKV; no
+  re-encoding, dates and notes kept, removable).
+- **Music tools.** Tempo detection (automatic for music files), tap tempo (B), ½ and ×2, first beat, beats per
+  bar, a beat grid on the timeline that everything snaps to (Shift + B), beat markers, and a spectrogram view
+  for audio files. The Audio tab is now "Audio and music".
+- **Error log and crash reports.** Warnings and errors (including mpv's) go to a log; a crash saves a report
+  and the next start offers to copy the details. Settings → About → Error log.
+- **Fixed:** a crash when opening a video while a song was showing and going full screen straight away
+  (found by the new crash log).
+- The Clips panel shows each clip's select count, and whether it has a transcript or an Explorer thumbnail.
+
 ## 1.1.40 (2026-11-15)
 - The mouse wheel now scrolls Settings, the side panels and the command palette at a normal speed
   (about three lines per notch) instead of a few pixels at a time. Touchpads scroll with your fingers.

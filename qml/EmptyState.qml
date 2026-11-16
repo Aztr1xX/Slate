@@ -51,14 +51,18 @@ Item {
             }
         }
         Rectangle { visible: App.recentFiles.length > 0; Layout.fillWidth: true; Layout.topMargin: 8; height: 1; color: Theme.line }
+        // A plain Column holds the list: rows coming and going straight inside a ColumnLayout can
+        // crash Qt's layout code when the window resizes at the same moment (opening a file, then full screen).
+        Column {
+            Layout.fillWidth: true
         Repeater {
-            model: App.recentFiles.slice(0, 7)
+            model: es.visible ? App.recentFiles.slice(0, 7) : []
             delegate: Rectangle {
                 id: rr
                 required property string modelData
                 readonly property string fname: modelData.split(/[\\/]/).pop()
                 readonly property string folder: modelData.substring(0, modelData.length - fname.length - 1)
-                Layout.fillWidth: true
+                width: parent ? parent.width : 0
                 height: 44; radius: Theme.radius
                 color: rh.hovered ? Theme.raise : "transparent"
                 HoverHandler { id: rh }
@@ -79,6 +83,7 @@ Item {
                     onClicked: App.removeRecent(rr.modelData)
                 }
             }
+        }
         }
     }
 }

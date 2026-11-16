@@ -31,6 +31,9 @@ add_library(slatecore STATIC
     src/timecode.h src/timecode.cpp
     src/markermodel.h src/markermodel.cpp
     src/folderqueue.h src/folderqueue.cpp
+    src/reviewstore.h src/reviewstore.cpp
+    src/undostack.h
+    src/fcpxml.h src/fcpxml.cpp
 )
 target_include_directories(slatecore PUBLIC src)
 target_link_libraries(slatecore PUBLIC Qt6::Core Qt6::Gui)
@@ -49,7 +52,7 @@ qt_add_executable(slate WIN32 MACOSX_BUNDLE
 if(WIN32)
     set_target_properties(slate PROPERTIES OUTPUT_NAME Slate)
 endif()
-set(SLATE_QML Main Theme Icon Tip Btn SMenu SMenuItem SSwitch SSlider Segmented SScrollBar Toast Timeline TransportBar MarkerPanel ClipsPanel InfoPanel TranscriptPanel ScopesPanel AudioView EmptyState CommandPalette SettingsDialog OpenUrlDialog CropGuide AudioPanel DownloadDialog KeyCap Hud GoToField WheelScroll)
+set(SLATE_QML Main Theme Icon Tip Btn SMenu SMenuItem SSwitch SSlider Segmented SScrollBar Toast Timeline TransportBar MarkerPanel ClipsPanel InfoPanel TranscriptPanel ScopesPanel AudioView EmptyState CommandPalette SettingsDialog OpenUrlDialog CropGuide AudioPanel DownloadDialog KeyCap Hud GoToField WheelScroll Choice ResolveDialog ThumbnailDialog)
 foreach(f IN LISTS SLATE_QML)
     # Put each QML file next to the module's qmldir so they see the C++ types and each other.
     set_source_files_properties(qml/${f}.qml PROPERTIES QT_RESOURCE_ALIAS ${f}.qml)
@@ -66,6 +69,10 @@ qt_add_qml_module(slate
         src/transcript.h src/transcript.cpp
         src/updater.h src/updater.cpp
         src/downloader.h src/downloader.cpp
+        src/resolveexport.h src/resolveexport.cpp
+        src/thumbnails.h src/thumbnails.cpp
+        src/tempo.h src/tempo.cpp
+        src/logger.h src/logger.cpp
         src/icons.h src/icons.cpp
     RESOURCES
         assets/slate.png
@@ -107,8 +114,14 @@ qt_add_qml_module(slate
         qml/KeyCap.qml
         qml/Hud.qml
         qml/GoToField.qml
+        qml/Choice.qml
+        qml/ResolveDialog.qml
+        qml/ThumbnailDialog.qml
 )
 target_link_libraries(slate PRIVATE slatecore libmpv Qt6::Quick Qt6::QuickControls2 Qt6::OpenGL Qt6::Network Qt6::Svg Qt6::Test)
+if(WIN32)
+    target_link_libraries(slate PRIVATE dbghelp shell32)
+endif()
 target_compile_definitions(slate PRIVATE PROJECT_VERSION_STRING="${PROJECT_VERSION}")
 
 # ---- tests ------------------------------------------------------------------

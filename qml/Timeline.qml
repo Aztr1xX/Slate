@@ -38,14 +38,31 @@ Item {
     function zoomBy(factor) { zoomAt(factor, Math.max(0, Math.min(track.width, xFor(mpv.position)))) }
     function resetZoom() { viewStart = 0; viewSpan = dur }
     // Nearest marker, In or Out within 7 px of x, else the time under x.
-    function snapped(x, free) {
+    // Beat grid from the Music section: [bpm, first beat, beats per bar] or empty.
+    property var beatGrid: []
+    property bool beatsShown: false
+    function beatTimes(from, to) {
+        const out = []
+        if (!beatsShown || beatGrid.length < 2 || beatGrid[0] <= 0) return out
+        const step = 60 / beatGrid[0], first = beatGrid[1], bar = beatGrid[2] || 4
+        let k = Math.ceil((from - first) / step)
+        for (let t = first + k * step; t <= to && out.length < 4000; t += step, ++k) if (t >= 0) out.push({ t: t, bar: ((k % bar) + bar) % bar === 0 })
+        return out
+    }
+    // Snaps to markers, select ends, In / Out and (when shown) beats. skipId leaves one select out.
+    function snapped(x, free, skipId) {
         const t = tFor(x)
         if (free) return t
         let best = t, bestPx = 7
         const consider = (c) => { if (c < 0) return; const d = Math.abs(xFor(c) - x); if (d < bestPx) { bestPx = d; best = c } }
         consider(App.inPoint)
         consider(App.outPoint)
-        for (let i = 0; i < App.markers.count; ++i) consider(App.markers.timeAt(i))
+        for (let i = 0; i < App.markers.count; ++i) {
+            if (skipId !== undefined && App.markers.idAt(i) === skipId) continue
+            consider(App.markers.timeAt(i))
+            consider(App.markers.endAt(i))
+        }
+        if (beatsShown) { const span = viewSpan * 7 / Math.max(1, track.width); for (const b of beatTimes(t - span, t + span)) consider(b.t) }
         return best
     }
 
@@ -116,6 +133,15 @@ Item {
             text: "Reading audio…"
             color: Theme.ink3; font.pixelSize: Theme.fontSmall
         }
+        // beat grid
+        Repeater {
+            model: tl.beatsShown && tl.viewSpan > 0 && tl.beatGrid.length >= 2 && (60 / tl.beatGrid[0]) / tl.viewSpan * track.width >= 3 ? tl.beatTimes(tl.viewStart, tl.viewEnd) : []
+            delegate: Rectangle {
+                required property var modelData
+                x: tl.xFor(modelData.t); width: 1; height: track.height
+                color: modelData.bar ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(1, 1, 1, 0.08)
+            }
+        }
         // played part
         Rectangle {
             width: Math.max(0, Math.min(track.width, tl.xFor(tl.mpv.position)))
@@ -171,27 +197,92 @@ Item {
                 id: mk
                 required property int index
                 required property double time
+                required property double end
+                required property bool isRange
                 required property int kind
                 required property string note
-                x: tl.xFor(time) - 7
-                width: 14; height: parent.height
-                visible: x > -14 && x < parent.width + 14
-                Rectangle { x: 6; width: 2; height: parent.height; color: Theme.kindColor(mk.kind); opacity: mh.hovered ? 1 : 0.7 }
+                required property int markerId
+                readonly property color tone: Theme.kindColor(kind)
+                readonly property real x0: tl.xFor(time)
+                readonly property real x1: isRange ? tl.xFor(end) : x0
+                x: isRange ? x0 : x0 - 7
+                width: isRange ? Math.max(4, x1 - x0) : 14
+                height: parent.height
+                visible: x + width > -14 && x < parent.width + 14
+                z: isRange ? 0 : 1
+
+                // ---- point marker: a flag head and a line ----
+                Rectangle { visible: !mk.isRange; x: 6; width: 2; height: parent.height; color: mk.tone; opacity: mh.hovered ? 1 : 0.7 }
                 Rectangle {
+                    visible: !mk.isRange
                     x: 3; y: 0
                     width: 8; height: 8; radius: 2
-                    color: Theme.kindColor(mk.kind)
+                    color: mk.tone
                     border.width: mh.hovered ? 1.5 : 0; border.color: Theme.ink
                 }
-                HoverHandler { id: mh; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: { tl.mpv.paused = true; tl.mpv.seekTo(mk.time, true) } }
-                Tip {
-                    visible: mh.hovered
-                    delay: 150
-                    text: (mk.note || Theme.kindName(mk.kind)) + "  ·  " + tl.fmt(mk.time)
+
+                // ---- select: a tinted span with a labelled bar along the top ----
+                Rectangle { visible: mk.isRange; anchors.fill: parent; color: mk.tone; opacity: mh.hovered || edgeA.active || edgeB.active ? 0.16 : 0.09 }
+                Rectangle {
+                    visible: mk.isRange
+                    width: parent.width; height: 13; radius: 3
+                    color: Qt.rgba(mk.tone.r, mk.tone.g, mk.tone.b, mh.hovered ? 0.95 : 0.8)
+                    Text {
+                        x: 5; width: parent.width - 10; anchors.verticalCenter: parent.verticalCenter
+                        visible: parent.width > 34
+                        text: mk.note && mk.note !== "Select" ? mk.note : App.formatClock(mk.end - mk.time)
+                        color: "#0b0c0f"; font.pixelSize: Theme.fontTiny; font.weight: Font.DemiBold
+                        elide: Text.ElideRight
+                    }
                 }
-                // only the head takes clicks; the line lets scrubbing through
+                HoverHandler { id: mh; cursorShape: Qt.PointingHandCursor }
+                TapHandler {
+                    onTapped: { tl.mpv.paused = true; tl.mpv.seekTo(mk.time, true) }
+                    onDoubleTapped: if (mk.isRange) { App.inPoint = mk.time; App.outPoint = mk.end; tl.mpv.seekTo(mk.time, true) }
+                }
+                Tip {
+                    visible: mh.hovered && !edgeA.active && !edgeB.active
+                    delay: 150
+                    text: mk.isRange ? (mk.note || "Select") + "  ·  " + tl.fmt(mk.time) + " to " + tl.fmt(mk.end) + " (" + App.formatClock(mk.end - mk.time) + ")  ·  drag the ends, double-click for In / Out"
+                                     : (mk.note || Theme.kindName(mk.kind)) + "  ·  " + tl.fmt(mk.time)
+                }
+                // only the head or bar takes clicks; the rest lets scrubbing through
                 containmentMask: QtObject { function contains(point: point) : bool { return point.y < 14 } }
+
+                // drag either end of a select
+                component Edge: Item {
+                    id: edge
+                    property bool isStart: true
+                    readonly property alias active: dh.active
+                    visible: mk.isRange
+                    x: isStart ? -5 : mk.width - 5
+                    width: 10; height: 14
+                    z: 2
+                    Rectangle { anchors.centerIn: parent; width: 3; height: 11; radius: 1.5; color: Theme.ink; visible: eh.hovered || dh.active }
+                    HoverHandler { id: eh; cursorShape: Qt.SizeHorCursor }
+                    DragHandler {
+                        id: dh
+                        target: null
+                        xAxis.enabled: true; yAxis.enabled: false
+                        property double startT: 0
+                        onActiveChanged: {
+                            if (active) { startT = edge.isStart ? mk.time : mk.end; tl.mpv.paused = true; App.markers.beginGesture() }
+                            else App.markers.endGesture("adjust select")
+                        }
+                        onTranslationChanged: {
+                            if (!active) return
+                            const row = App.markers.rowOfId(mk.markerId)
+                            if (row < 0) return
+                            const a = App.markers.timeAt(row), b = App.markers.endAt(row)
+                            let nt = tl.snapped(tl.xFor(startT) + translation.x, false, mk.markerId)
+                            if (edge.isStart) { nt = Math.max(0, Math.min(nt, b - tl.frameDur)); App.markers.setRange(row, nt, b) }
+                            else { nt = Math.min(tl.dur, Math.max(nt, a + tl.frameDur)); App.markers.setRange(row, a, nt) }
+                            tl.mpv.seekTo(nt, false)
+                        }
+                    }
+                }
+                Edge { id: edgeA; isStart: true }
+                Edge { id: edgeB; isStart: false }
             }
         }
     }
@@ -222,7 +313,10 @@ Item {
                 target: null
                 xAxis.enabled: true; yAxis.enabled: false
                 property double startT: 0
-                onActiveChanged: if (active) { startT = handle.t; tl.mpv.paused = true }
+                onActiveChanged: {
+                    if (active) { startT = handle.t; tl.mpv.paused = true; App.beginInOutEdit() }
+                    else App.endInOutEdit()
+                }
                 onTranslationChanged: {
                     if (!active) return
                     let nt = tl.snapped(tl.xFor(startT) + translation.x, false)

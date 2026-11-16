@@ -40,6 +40,7 @@ QtObject {
     readonly property color bad: "#f0575c"
     readonly property color note: "#e8b54a"
     readonly property color warn: "#e8b54a"
+    readonly property color select: "#4fb3d9"     // selects (kept ranges): cyan, apart from the indigo In / Out
 
     // type: Slate Inter everywhere, figures are tabular so numbers line up
     readonly property string mono: Qt.application.font.family
@@ -63,6 +64,6 @@ QtObject {
     readonly property int fast: motion ? 110 : 0
     readonly property int normal: motion ? 160 : 0
 
-    function kindColor(k) { return k === 1 ? good : (k === 2 ? bad : note) }
-    function kindName(k) { return k === 1 ? "Good take" : (k === 2 ? "Mistake" : "Note") }
+    function kindColor(k) { return k === 1 ? good : (k === 2 ? bad : (k === 3 ? select : note)) }
+    function kindName(k) { return k === 1 ? "Good take" : (k === 2 ? "Mistake" : (k === 3 ? "Select" : "Note")) }
 }
