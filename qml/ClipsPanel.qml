@@ -8,6 +8,8 @@ Item {
     id: panel
     required property var win
     property int minStars: 0
+    property int thumbRev: 0
+    Connections { target: Thumbnails; function onFinished() { panel.thumbRev++ } }
     readonly property var shown: {
         App.ratingsRevision
         return App.queue.filter(f => minStars === 0 || App.rating(f) >= minStars)
@@ -106,6 +108,9 @@ Item {
                     }
                     Row {
                         spacing: 1
+                        readonly property int sels: { App.markers.revision; App.ratingsRevision; return App.selectCountFor(row.modelData) }
+                        readonly property bool hasText: { Transcript.revision; return Transcript.hasTranscript(row.modelData) }
+                        readonly property bool hasThumb: { panel.thumbRev; return Thumbnails.embeddedTime(row.modelData) >= 0 }
                         Repeater {
                             model: 5
                             delegate: Icon {
@@ -120,6 +125,17 @@ Item {
                                 }
                             }
                         }
+                        Item { width: 8; height: 1 }
+                        Rectangle {
+                            visible: parent.sels > 0
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: selTxt.implicitWidth + 10; height: 15; radius: 4
+                            color: Qt.rgba(Theme.select.r, Theme.select.g, Theme.select.b, 0.18)
+                            Text { id: selTxt; anchors.centerIn: parent; text: parent.parent.sels + (parent.parent.sels === 1 ? " select" : " selects"); color: Theme.select; font.pixelSize: Theme.fontTiny; font.weight: Font.Medium }
+                        }
+                        Item { width: 4; height: 1 }
+                        Icon { visible: parent.hasText; name: "transcript"; size: 13; color: Theme.ink3; anchors.verticalCenter: parent.verticalCenter }
+                        Icon { visible: parent.hasThumb; name: "image"; size: 13; color: Theme.ink3; anchors.verticalCenter: parent.verticalCenter }
                     }
                 }
                 SMenu {

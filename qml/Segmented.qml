@@ -8,7 +8,8 @@ Rectangle {
     property int current: 0
     signal picked(int index)
     implicitHeight: 30
-    implicitWidth: row.implicitWidth + 6
+    property real itemWidth: 78   // natural width of one option when not stretched by a layout
+    implicitWidth: options.length * itemWidth + (options.length - 1) * 2 + 6
     radius: Theme.radius
     color: Theme.well
     Row {

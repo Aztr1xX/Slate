@@ -62,6 +62,17 @@ const QHash<QString, QString> &icons()
         { QStringLiteral("drop"), QStringLiteral("<path d='M12 4v11'/><path d='M7.5 10.5L12 15l4.5-4.5'/><path d='M4.5 15.5v2.5A2 2 0 0 0 6.5 20h11a2 2 0 0 0 2-2v-2.5'/>") },
         { QStringLiteral("sort"), QStringLiteral("<path d='M7 4v16M4 7l3-3 3 3M17 20V4M14 17l3 3 3-3'/>") },
         { QStringLiteral("filter"), QStringLiteral("<path d='M4 5.5h16l-6 7.5v5.5l-4 1.5v-7z'/>") },
+        { QStringLiteral("select"), QStringLiteral("<path d='M4 7v10M20 7v10'/><rect x='7' y='9' width='10' height='6' rx='1.5'/>") },
+        { QStringLiteral("undo"), QStringLiteral("<path d='M9 14L4.5 9.5 9 5'/><path d='M4.5 9.5H14a5.5 5.5 0 0 1 0 11h-3'/>") },
+        { QStringLiteral("redo"), QStringLiteral("<path d='M15 14l4.5-4.5L15 5'/><path d='M19.5 9.5H10a5.5 5.5 0 0 0 0 11h3'/>") },
+        { QStringLiteral("resolve"), QStringLiteral("<rect x='3' y='5' width='18' height='14' rx='2'/><path d='M3 10h18'/><path d='M7 14h4M13 14h4M7 16.5h7'/>") },
+        { QStringLiteral("image"), QStringLiteral("<rect x='3.5' y='4.5' width='17' height='15' rx='2'/><circle cx='9' cy='10' r='1.8'/><path d='M20.5 16l-5-5-8.5 8.5'/>") },
+        { QStringLiteral("metronome"), QStringLiteral("<path d='M9.5 3.5h5l4 17h-13z'/><path d='M12 15l5-8'/><path d='M7.5 15h9'/>") },
+        { QStringLiteral("spectrum"), QStringLiteral("<path d='M3.5 19.5h17'/><path d='M6 19.5V13M9 19.5V8M12 19.5V11M15 19.5V5M18 19.5V10' stroke-width='2.2'/>") },
+        { QStringLiteral("bug"), QStringLiteral("<rect x='7.5' y='7' width='9' height='13' rx='4.5'/><path d='M12 11v9M4 13h3.5M16.5 13H20M5 8l2.5 2M19 8l-2.5 2M5 19l2.5-2M19 19l-2.5-2M9.5 7a2.5 2.5 0 0 1 5 0'/>") },
+        { QStringLiteral("grip"), QStringLiteral("F:<circle cx='9' cy='7' r='1.4'/><circle cx='15' cy='7' r='1.4'/><circle cx='9' cy='12' r='1.4'/><circle cx='15' cy='12' r='1.4'/><circle cx='9' cy='17' r='1.4'/><circle cx='15' cy='17' r='1.4'/>") },
+        { QStringLiteral("repeat"), QStringLiteral("<path d='M4 7h12a4 4 0 0 1 4 4v1'/><path d='M7 4L4 7l3 3'/><path d='M20 17H8a4 4 0 0 1-4-4v-1'/><path d='M17 20l3-3-3-3'/>") },
+        { QStringLiteral("sparkle"), QStringLiteral("<path d='M12 3.5l1.8 5.2 5.2 1.8-5.2 1.8L12 17.5l-1.8-5.2L5 10.5l5.2-1.8z'/><path d='M18.5 16v4M16.5 18h4'/>") },
         { QStringLiteral("external"), QStringLiteral("<path d='M14 4h6v6'/><path d='M20 4l-9 9'/><path d='M18 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10'/>") },
     };
     return m;

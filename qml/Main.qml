@@ -95,7 +95,9 @@ ApplicationWindow {
     }
     function fmt(t) { return mpv.hasVideo && mpv.fps > 0 ? App.formatTimecode(t, mpv.fps) : App.formatClock(t) }
 
-    function openMedia(target) {
+    function openMedia(target) { openMediaAt(target, -1) }
+    // Opens a file at a given time (a transcript search result, a repeated take), or the resume point when at < 0.
+    function openMediaAt(target, at) {
         if (App.isSubtitleFile(target)) {
             if (mpv.loaded) { mpv.addSubtitle(App.localPath(target)); toast("Subtitles loaded") }
             return
@@ -104,10 +106,12 @@ ApplicationWindow {
         const f = App.prepareOpen(target)
         if (!f) return
         stopCompare()
-        const resume = App.setting("resume", true) ? App.resumePosition(f) : 0
+        selectStart = -1
+        const resume = at >= 0 ? at : (App.setting("resume", true) ? App.resumePosition(f) : 0)
         mpv.open(f, resume)
-        if (resume > 0) toast("Resumed at " + App.formatClock(resume) + ". Press Home to start over")
+        if (resume > 0 && at < 0) toast("Resumed at " + App.formatClock(resume) + ". Press Home to start over")
         Transcript.load(f)
+        Tempo.load(f)
         Media.setQueue(App.queue)
     }
     function openNext(dir) {
@@ -125,6 +129,40 @@ ApplicationWindow {
         if (!markerHintShown && panelsVisible && sideTab === 0) { markerHintShown = true; toast("Double-click a marker in the list to write a note") }
     }
     property bool markerHintShown: false
+    // S: a select from In to Out when both are set, otherwise S at the start and S again at the end.
+    property double selectStart: -1
+    function toggleSelect() {
+        if (!mpv.loaded) return
+        if (selectStart < 0 && App.inPoint >= 0 && App.outPoint > App.inPoint) {
+            const len = App.outPoint - App.inPoint
+            mpv.setLoop(-1, -1)
+            App.makeSelectFromInOut("")
+            hud("select", "Select added  ·  " + App.formatClock(len))
+            return
+        }
+        if (selectStart < 0) {
+            selectStart = mpv.position
+            hud("select", "Select starts at " + fmt(selectStart) + "  ·  S to end it")
+            return
+        }
+        let a = selectStart, b = mpv.position
+        selectStart = -1
+        if (b < a) { const t = a; a = b; b = t }
+        if (b - a < Math.max(0.04, mpv.fps > 0 ? 1 / mpv.fps : 0.04)) { hud("close", "Select cancelled"); return }
+        App.markers.add(a, 3, "", b)
+        hud("select", "Select added  ·  " + App.formatClock(b - a))
+        if (!selectHintShown && panelsVisible && sideTab === 0) { selectHintShown = true; toast("Drag a select's ends on the timeline to adjust it. Ctrl+R sends selects to DaVinci Resolve") }
+    }
+    property bool selectHintShown: false
+    function cancelSelect() { if (selectStart >= 0) { selectStart = -1; hud("close", "Select cancelled") } }
+    function undo() {
+        const what = App.undo()
+        hud("undo", what ? "Undid " + what : "Nothing to undo")
+    }
+    function redo() {
+        const what = App.redo()
+        hud("redo", what ? "Redid " + what : "Nothing to redo")
+    }
     function setIn() { if (mpv.loaded) { App.inPoint = mpv.position; syncLoop(); hud("in", "In " + fmt(App.inPoint)) } }
     function setOut() { if (mpv.loaded) { App.outPoint = mpv.position; syncLoop(); hud("out", "Out " + fmt(App.outPoint)) } }
     function clearInOut() { App.clearInOut(); mpv.setLoop(-1, -1); hud("close", "In and Out cleared") }
@@ -162,9 +200,10 @@ ApplicationWindow {
         if (mpv.screenshot(p)) toast("Saved frame " + mpv.frame, p); else toast("Couldn't save the frame")
     }
     // Esc steps back out of whatever is layered on: full screen, comparison, zoom, crop guide.
-    readonly property bool escapable: isFull || compareFile !== "" || zoomScale > 1.001 || guideOn
+    readonly property bool escapable: isFull || compareFile !== "" || zoomScale > 1.001 || guideOn || selectStart >= 0
     function stepBack() {
-        if (isFull) toggleFullscreen()
+        if (selectStart >= 0) cancelSelect()
+        else if (isFull) toggleFullscreen()
         else if (compareFile !== "") stopCompare()
         else if (zoomScale > 1.001) setZoom(1, 0, 0)
         else if (guideOn) toggleGuide()
@@ -174,6 +213,51 @@ ApplicationWindow {
         else { wasMaximized = visibility === Window.Maximized; visibility = Window.FullScreen }
     }
     function togglePanels() { panelsVisible = !panelsVisible; App.setSetting("panelsVisible", panelsVisible) }
+    // ---- music -------------------------------------------------------------------------
+    property bool beatGridOn: App.setting("beatGrid", false)
+    onBeatGridOnChanged: App.setSetting("beatGrid", beatGridOn)
+    function toggleBeatGrid() {
+        if (Tempo.bpm <= 0) { showTab(5); toast("Find or tap the tempo first, in Audio and music"); return }
+        beatGridOn = !beatGridOn
+        hud("metronome", beatGridOn ? "Beat grid on. Markers and edges snap to beats" : "Beat grid off")
+    }
+    property var taps: []
+    // Tap along with the beat (B). Four taps set the tempo; it keeps refining while you tap.
+    function tapTempo() {
+        if (!mpv.loaded) return
+        const now = Date.now()
+        let t = taps.length && now - taps[taps.length - 1].at > 2000 ? [] : taps.slice()
+        t.push({ at: now, pos: mpv.position })
+        if (t.length > 12) t = t.slice(t.length - 12)
+        taps = t
+        if (t.length < 4) { hud("metronome", "Tap " + (4 - t.length) + " more"); return }
+        const bpm = 60000 * (t.length - 1) / (t[t.length - 1].at - t[0].at)
+        Tempo.setBpm(Math.round(bpm * 10) / 10, "tapped")
+        if (!mpv.paused) Tempo.setFirstBeat(t[t.length - 1].pos - 0.03)  // taps land a touch late
+        hud("metronome", Tempo.bpm.toFixed(1).replace(/\.0$/, "") + " BPM")
+    }
+    // Markers on every beat / bar / 2 bars / 4 bars, optionally only between In and Out.
+    function addBeatMarkers(every, inOutOnly) {
+        if (Tempo.bpm <= 0 || !mpv.loaded) return
+        const step = 60 / Tempo.bpm * every
+        const a = inOutOnly && App.inPoint >= 0 ? App.inPoint : 0
+        const b = inOutOnly && App.outPoint > a ? App.outPoint : mpv.duration
+        const beatsInStep = every
+        let k = Math.ceil((a - Tempo.firstBeat) / step - 1e-6)
+        const list = []
+        for (let t = Tempo.firstBeat + k * step; t < b - 1e-6 && list.length < 1000; t += step, ++k) {
+            if (t < a - 1e-6) continue
+            const bars = Math.round((t - Tempo.firstBeat) / (60 / Tempo.bpm)) / Tempo.beatsPerBar
+            const label = beatsInStep >= Tempo.beatsPerBar ? "Bar " + (Math.floor(bars) + 1) : "Beat " + (Math.round((t - Tempo.firstBeat) / (60 / Tempo.bpm)) + 1)
+            list.push({ time: t, kind: 0, note: label })
+        }
+        if (!list.length) { toast("No beats in that range"); return }
+        App.markers.addMany(list, "Beat markers")
+        toast("Added " + list.length + " beat markers. Ctrl+Z removes them")
+    }
+
+    signal transcriptFocus()
+    property bool pendingTranscriptFocus: false
     function showTab(i) { sideTab = i; if (!panelsVisible) togglePanels() }
     function jumpMarker(dir) {
         const t = dir > 0 ? App.markers.nextAfter(mpv.position + 0.001) : App.markers.prevBefore(mpv.position - 0.001)
@@ -213,7 +297,9 @@ ApplicationWindow {
     readonly property bool settingsOpen: settingsLoader.item ? settingsLoader.item.opened : false
     readonly property bool downloadsOpen: downloadLoader.item ? downloadLoader.item.opened : false
     readonly property bool urlOpen: urlLoader.item ? urlLoader.item.opened : false
-    readonly property bool dialogOpen: paletteOpen || settingsOpen || downloadsOpen || urlOpen
+    readonly property bool resolveOpen: resolveLoader.item ? resolveLoader.item.opened : false
+    readonly property bool thumbsOpen: thumbLoader.item ? thumbLoader.item.opened : false
+    readonly property bool dialogOpen: paletteOpen || settingsOpen || downloadsOpen || urlOpen || resolveOpen || thumbsOpen
     function openPalette() { paletteLoader.active = true; if (!paletteLoader.item.opened) paletteLoader.item.open() }
     function closePalette() { if (paletteLoader.item) paletteLoader.item.close() }
     function openSettings(page) { settingsLoader.active = true; settingsLoader.item.openAt(page) }
@@ -225,6 +311,48 @@ ApplicationWindow {
     }
     function closeDownloads() { if (downloadLoader.item) downloadLoader.item.close() }
     function openUrlDialog() { urlLoader.active = true; urlLoader.item.open() }
+    function openResolve() {
+        if (!App.currentFile) { toast("Open a clip or a folder first"); return }
+        resolveLoader.active = true
+        if (!resolveLoader.item.opened) resolveLoader.item.open()
+    }
+    function closeResolve() { if (resolveLoader.item) resolveLoader.item.close() }
+    function openThumbnails() {
+        if (!App.currentFile || !mpv.hasVideo) { toast("Open a video first"); return }
+        thumbLoader.active = true
+        if (!thumbLoader.item.opened) thumbLoader.item.open()
+    }
+    function closeThumbnails() { if (thumbLoader.item) thumbLoader.item.close() }
+    // The frame on screen as the file's Explorer thumbnail (asks first, the first time).
+    function explorerThumbHere() {
+        if (!mpv.loaded || !mpv.hasVideo) return
+        if (!Thumbnails.canEmbed(App.currentFile)) { toast("Explorer thumbnails can be set on MP4, MOV, M4V and MKV files"); return }
+        if (App.setting("thumb/noConfirm", false)) { setExplorerThumbnail(App.currentFile, mpv.position); return }
+        thumbLoader.active = true
+        thumbLoader.item.pendingTime = mpv.position
+        thumbLoader.item.confirming = true
+        if (!thumbLoader.item.opened) thumbLoader.item.open()
+    }
+    function setExplorerThumbnail(file, t) { Thumbnails.embed(file, t) }
+    function removeExplorerThumbnail(file) { Thumbnails.removeEmbedded(file) }
+    // The new copy is ready: let go of the file if it's playing, swap it in, then carry on where we were.
+    property var swapState: null
+    Timer {
+        id: swapTimer
+        interval: 250
+        repeat: true
+        onTriggered: {
+            const s = win.swapState
+            s.tries++
+            const last = s.tries >= 12
+            if (!Thumbnails.commitSwap(s.file, last) && !last) return
+            stop()
+            win.swapState = null
+            if (s.reopen) { mpv.open(s.file, s.pos); if (s.paused) pauseAfterOpen = true }
+        }
+    }
+    property bool pauseAfterOpen: false
+    Connections { target: mpv; function onLoadedChanged() { if (mpv.loaded && win.pauseAfterOpen) { win.pauseAfterOpen = false; mpv.paused = true } } }
     function beginGoTo() { if (!mpv.loaded) return; if (isFull) mouseRecently = true; transport.goTo.begin() }
 
     // ----- keyboard -------------------------------------------------------------
@@ -262,6 +390,9 @@ ApplicationWindow {
         { id: "marker", category: "Review", name: "Add marker (note)", keys: ["M"], run: () => addMarker(0) },
         { id: "markerGood", category: "Review", name: "Mark a good take", keys: ["Shift+M"], run: () => addMarker(1) },
         { id: "markerBad", category: "Review", name: "Mark a mistake", keys: ["Alt+M"], run: () => addMarker(2) },
+        { id: "select", category: "Review", name: "Start or end a select (or turn In to Out into one)", keys: ["S"], run: toggleSelect },
+        { id: "undo", category: "Review", name: "Undo", keys: ["Ctrl+Z"], run: undo },
+        { id: "redo", category: "Review", name: "Redo", keys: ["Ctrl+Shift+Z", "Ctrl+Y"], run: redo },
         { id: "nextMarker", category: "Review", name: "Next marker", keys: ["Ctrl+Right"], run: () => jumpMarker(1) },
         { id: "prevMarker", category: "Review", name: "Previous marker", keys: ["Ctrl+Left"], run: () => jumpMarker(-1) },
         { id: "in", category: "Review", name: "Set In point", keys: ["I"], run: setIn },
@@ -281,10 +412,19 @@ ApplicationWindow {
         { id: "exportClip", category: "Export", name: "Export In to Out (lossless)", keys: ["Ctrl+E"], run: () => App.exportClip(true) },
         { id: "exportExact", category: "Export", name: "Export In to Out (frame-exact)", keys: ["Ctrl+Shift+E"], run: () => App.exportClip(false) },
         { id: "edl", category: "Export", name: "Export markers for DaVinci Resolve (EDL)", keys: [], run: () => App.exportMarkersEdl(mpv.fps) },
+        { id: "resolve", category: "Export", name: "Send to DaVinci Resolve (timeline)…", keys: ["Ctrl+R"], run: openResolve },
+        { id: "exportSelects", category: "Export", name: "Export every select as its own clip", keys: [], run: () => { if (App.markers.selectCount) App.exportRanges(App.markers.selects(), true); else toast("No selects yet. Press S at the start and end of a part to keep") } },
         { id: "csv", category: "Export", name: "Export markers as CSV", keys: [], run: () => App.exportMarkersCsv(mpv.fps) },
         { id: "chapters", category: "Export", name: "Copy markers as YouTube chapters", keys: [], run: () => App.copyYouTubeChapters(mpv.duration) },
+        { id: "tapTempo", category: "Review", name: "Tap tempo", keys: ["B"], run: tapTempo },
+        { id: "beatGrid", category: "View", name: "Show beat grid (snap to beats)", keys: ["Shift+B"], run: toggleBeatGrid },
+        { id: "findTempo", category: "Review", name: "Find the tempo (BPM)", keys: [], run: () => { if (App.currentFile) { showTab(5); Tempo.detect(App.currentFile) } } },
+        { id: "thumbnails", category: "Export", name: "Find thumbnail frames…", keys: ["Ctrl+T"], run: openThumbnails },
+        { id: "explorerThumb", category: "Export", name: "Make this frame the file's Explorer thumbnail", keys: [], run: explorerThumbHere },
         { id: "frameGrab", category: "Export", name: "Save current frame as PNG", keys: ["Ctrl+Shift+S"], run: grabFrame },
         { id: "transcribe", category: "Export", name: "Transcribe this clip", keys: [], run: () => { showTab(3); Transcript.start(App.currentFile) } },
+        { id: "transcribeAll", category: "Export", name: "Transcribe every clip in this folder", keys: [], run: () => { showTab(3); const n = Transcript.transcribeAll(App.queue); toast(n ? "Transcribing " + n + " clips in the background" : "Every clip already has a transcript") } },
+        { id: "findSpoken", category: "Review", name: "Search what's said (transcripts)", keys: ["Ctrl+F"], run: () => { pendingTranscriptFocus = true; showTab(3); transcriptFocus() } },
 
         { id: "panels", category: "View", name: "Show or hide side panel", keys: ["H"], run: togglePanels },
         { id: "fullscreen", category: "View", name: "Full screen", keys: ["F", "F11"], run: toggleFullscreen },
@@ -368,7 +508,11 @@ ApplicationWindow {
             win.rewindRate = 0
             if (App.setting("autoAdvance", false) && App.nextInQueue(1)) Qt.callLater(() => win.openNext(1))
         }
-        function onFileLoaded() { Media.analyse(App.currentFile, mpv.duration, mpv.hasVideo) }
+        function onFileLoaded() {
+            Media.analyse(App.currentFile, mpv.duration, mpv.hasVideo)
+            // music files: find the tempo straight away (a couple of seconds, in the background)
+            if (!mpv.hasVideo && Tempo.bpm <= 0 && Tempo.file === App.currentFile && App.setting("autoTempo", true)) Tempo.detect(App.currentFile)
+        }
         function onDurationChanged() { if (mpv.loaded) Media.analyse(App.currentFile, mpv.duration, mpv.hasVideo) }
         function onVideoInfoChanged() { if (mpv.loaded) Media.analyse(App.currentFile, mpv.duration, mpv.hasVideo) }
         function onVolumeChanged() { volumeSave.restart() }
@@ -394,6 +538,24 @@ ApplicationWindow {
     Connections {
         target: Transcript
         function onFinished(ok, message) { win.toast(message) }
+    }
+    Connections {
+        target: ResolveExport
+        function onFinished(ok, message, path) { win.toast(message, ok ? path : "") }
+    }
+    Connections {
+        target: Tempo
+        function onDetected(ok, message) { if (Tempo.file === App.currentFile) { if (ok) hud("metronome", message); else toast(message) } }
+    }
+    Connections {
+        target: Thumbnails
+        function onFinished(ok, message, path) { if (message) win.toast(message, ok && path && !path.endsWith(".mp4") ? path : "") }
+        function onSwapReady(file) {
+            const playing = file === App.currentFile && mpv.loaded
+            win.swapState = { file: file, tries: 0, reopen: playing, pos: mpv.position, paused: mpv.paused }
+            if (playing) mpv.command(["stop"])
+            swapTimer.start()
+        }
     }
 
     Component.onCompleted: {
@@ -653,6 +815,7 @@ ApplicationWindow {
                         color: Qt.rgba(0, 0, 0, 0.55)
                         Text { id: t; anchors.centerIn: parent; color: parent.tone; font.pixelSize: 11 }
                     }
+                    Chip { visible: win.selectStart >= 0; tone: Theme.select; text: "Select from " + win.fmt(win.selectStart) + "  ·  S ends it, Esc cancels" }
                     Chip { visible: mpv.loopA >= 0; text: "Looping In → Out" }
                     Chip { visible: Math.abs(mpv.speed - 1) > 0.001; text: mpv.speed + "×" }
                     Chip { visible: win.skipSilence; text: "Skipping silences" + (win.silenceSaved >= 1 ? " · " + App.formatClock(win.silenceSaved) + " saved" : "") }
@@ -701,9 +864,15 @@ ApplicationWindow {
                     SMenuItem { text: "Mark a good take"; glyph: "check"; keys: "Shift+M"; onTriggered: win.addMarker(1) }
                     SMenuItem { text: "Set In here"; glyph: "in"; keys: "I"; onTriggered: win.setIn() }
                     SMenuItem { text: "Set Out here"; glyph: "out"; keys: "O"; onTriggered: win.setOut() }
+                    SMenuItem {
+                        text: App.inPoint >= 0 && App.outPoint > App.inPoint ? "Make a select from In to Out" : (win.selectStart >= 0 ? "End the select here" : "Start a select here")
+                        glyph: "select"; keys: "S"; onTriggered: win.toggleSelect()
+                    }
                     MenuSeparator { contentItem: Rectangle { implicitHeight: 1; color: Theme.line } }
                     SMenuItem { text: "Copy frame"; glyph: "copy-frame"; keys: "Ctrl+C"; enabled: mpv.hasVideo; onTriggered: win.toast(mpv.copyFrame() ? "Frame copied. Paste it anywhere" : "Couldn't copy this frame") }
                     SMenuItem { text: "Save frame as PNG"; glyph: "camera"; keys: "Ctrl+Shift+S"; enabled: mpv.hasVideo; onTriggered: win.grabFrame() }
+                    SMenuItem { text: "Find thumbnail frames…"; glyph: "image"; keys: "Ctrl+T"; enabled: mpv.hasVideo; onTriggered: win.openThumbnails() }
+                    SMenuItem { text: "Make this the Explorer thumbnail"; glyph: "image"; enabled: mpv.hasVideo && Thumbnails.canEmbed(App.currentFile) && !Thumbnails.busy; onTriggered: win.explorerThumbHere() }
                     SMenuItem { text: "Go to a time…"; glyph: "search"; keys: "Ctrl+G"; onTriggered: win.beginGoTo() }
                     MenuSeparator { contentItem: Rectangle { implicitHeight: 1; color: Theme.line } }
                     SMenuItem { text: win.zoomScale > 1.001 ? "Fit picture" : "Zoom to 200%"; glyph: "zoom"; keys: "Z"; enabled: mpv.hasVideo; onTriggered: win.toggleZoom() }
@@ -769,6 +938,47 @@ ApplicationWindow {
                     y: win.isFull ? 40 : 28
                     z: 20
                 }
+                // After a crash: what happened, with the report one click away.
+                Rectangle {
+                    id: crashCard
+                    objectName: "crashCard"
+                    visible: Logs.crashReport !== ""
+                    z: 25
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    y: 20
+                    width: Math.min(520, parent.width - 40)
+                    height: crashCol.implicitHeight + 28
+                    radius: Theme.radiusLg
+                    color: Theme.popup
+                    border.color: Theme.lineStrong
+                    RowLayout {
+                        anchors.fill: parent; anchors.margins: 14
+                        spacing: 12
+                        Icon { Layout.alignment: Qt.AlignTop; name: "bug"; size: 20; color: Theme.warn }
+                        ColumnLayout {
+                            id: crashCol
+                            Layout.fillWidth: true
+                            spacing: 6
+                            Text {
+                                Layout.fillWidth: true
+                                text: Logs.crashFile ? "Slate closed unexpectedly last time" : "Slate didn't close normally last time"
+                                color: Theme.ink; font.pixelSize: Theme.fontBody; font.weight: Font.DemiBold; wrapMode: Text.WordWrap
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: Logs.crashFile ? "A crash report was saved. Your markers and notes are kept as you go, so nothing should be lost." : "It may have frozen or been closed from Task Manager. Your markers and notes are kept as you go."
+                                color: Theme.ink2; font.pixelSize: 12; wrapMode: Text.WordWrap
+                            }
+                            RowLayout {
+                                spacing: 6
+                                Layout.topMargin: 4
+                                Btn { flat: false; glyph: "copy"; text: "Copy details"; onClicked: { Logs.copyDetails(); win.toast("Copied. Paste it into your bug report") } }
+                                Btn { flat: false; glyph: "open"; text: "Show report"; onClicked: Logs.openFolder() }
+                            }
+                        }
+                        Btn { Layout.alignment: Qt.AlignTop; glyph: "close"; tip: "Dismiss"; onClicked: Logs.dismissCrash() }
+                    }
+                }
                 Toast {
                     id: toastItem
                     objectName: "toast"
@@ -822,7 +1032,7 @@ ApplicationWindow {
                                     { icon: "info", tip: "Media info", keys: "Alt+3", warn: Media.probe.vfr === true },
                                     { icon: "transcript", tip: "Transcript", keys: "Alt+4", warn: false },
                                     { icon: "scope", tip: "Video scopes", keys: "Alt+5", warn: false },
-                                    { icon: "audio-track", tip: "Audio levels", keys: "Alt+6", warn: false }
+                                    { icon: "audio-track", tip: "Audio and music", keys: "Alt+6", warn: false }
                                 ]
                                 delegate: AbstractButton {
                                     id: tabBtn
@@ -885,7 +1095,7 @@ ApplicationWindow {
                         Tab { tab: 2; sourceComponent: InfoPanel { mpv: player } }
                         Tab { tab: 3; sourceComponent: TranscriptPanel { mpv: player; win: mainWindow } }
                         Tab { tab: 4; sourceComponent: ScopesPanel { mpv: player; shown: side.visible && win.sideTab === 4 } }
-                        Tab { tab: 5; sourceComponent: AudioPanel { mpv: player; shown: side.visible && win.sideTab === 5 } }
+                        Tab { tab: 5; sourceComponent: AudioPanel { mpv: player; win: mainWindow; shown: side.visible && win.sideTab === 5 } }
                     }
                 }
             }
@@ -906,7 +1116,11 @@ ApplicationWindow {
         parent: win.isFull ? overlayControls : dock
         anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
         anchors.bottomMargin: win.isFull ? 8 : 0
-        Timeline { id: timeline; width: parent.width; mpv: mpv; overlay: win.isFull }
+        Timeline {
+            id: timeline; objectName: "timeline"; width: parent.width; mpv: mpv; overlay: win.isFull
+            beatGrid: Tempo.bpm > 0 && Tempo.file === App.currentFile ? [Tempo.bpm, Tempo.firstBeat, Tempo.beatsPerBar] : []
+            beatsShown: win.beatGridOn
+        }
         TransportBar { id: transport; width: parent.width; mpv: mpv; win: win; overlay: win.isFull }
     }
 
@@ -923,5 +1137,7 @@ ApplicationWindow {
         active: false
         sourceComponent: OpenUrlDialog { onAccepted: (u) => win.openMedia(u); onDownload: (u) => win.openDownloads(u) }
     }
+    Loader { id: resolveLoader; active: false; sourceComponent: ResolveDialog { win: mainWindow } }
+    Loader { id: thumbLoader; active: false; sourceComponent: ThumbnailDialog { win: mainWindow; mpv: player } }
     Loader { id: downloadLoader; active: false; sourceComponent: DownloadDialog { objectName: "downloadDialog"; win: mainWindow } }
 }

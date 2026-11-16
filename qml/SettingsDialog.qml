@@ -110,6 +110,10 @@ Popup {
                     Toggle { key: "rememberVolume"; text: "Remember the volume" }
                     Toggle { key: "autoAdvance"; fallback: false; text: "Play the next clip in the folder when one ends" }
                     Divider {}
+                    Toggle { key: "sidecar"; text: "Keep a copy of review notes in each clip's folder" }
+                    Note { text: "Markers, selects, ratings and tempo are kept by the file's contents, so they follow clips you move or rename. With this on, a hidden " + "“.slate-review.json”" + " in the folder also carries them to another computer or drive." }
+                    Toggle { key: "autoTempo"; text: "Find the tempo of music files when they open" }
+                    Divider {}
                     RowLayout {
                         Layout.fillWidth: true
                         Text { Layout.fillWidth: true; text: "Recent files"; color: Theme.ink; font.pixelSize: Theme.fontBody }
@@ -360,6 +364,15 @@ Popup {
                         }
                     }
                     Toggle { visible: Updater.supported; key: "autoUpdate"; text: "Download updates automatically" }
+                    Divider {}
+                    Text { text: "Error log"; color: Theme.ink; font.pixelSize: 13; font.weight: Font.DemiBold }
+                    Note { text: "Slate writes warnings, errors and crash reports to a log on this computer. Nothing is sent anywhere. If something goes wrong, copy the details and paste them where you report it." }
+                    RowLayout {
+                        spacing: 8
+                        Btn { flat: false; glyph: "file"; text: "Open log"; onClicked: Logs.openLog() }
+                        Btn { flat: false; glyph: "open"; text: "Show folder"; onClicked: Logs.openFolder() }
+                        Btn { flat: false; glyph: "copy"; text: "Copy details"; onClicked: { Logs.copyDetails(); dlg.win.toast("Copied the log details") } }
+                    }
                     Divider {}
                     Note { text: "Built with Qt (LGPL v3), libmpv (LGPL v2.1+) and FFmpeg, which runs as a separate program. Transcription uses whisper.cpp (MIT) and OpenAI's Whisper models (MIT). URL playback uses yt-dlp (Unlicense). The typeface is Inter (SIL Open Font License)." }
                     Note { text: "Slate itself: personal use, all rights reserved." }

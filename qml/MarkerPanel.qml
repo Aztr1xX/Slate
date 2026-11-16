@@ -9,6 +9,8 @@ Item {
     required property var mpv
     required property var win
     function fmt(t) { return mpv.hasVideo && mpv.fps > 0 ? App.formatTimecode(t, mpv.fps) : App.formatClock(t) }
+    property int filter: 0   // 0 everything, 1 selects, 2 point markers
+    function shows(isRange) { return filter === 0 || (filter === 1 && isRange) || (filter === 2 && !isRange) }
 
     ColumnLayout {
         anchors.fill: parent
@@ -18,8 +20,26 @@ Item {
             Layout.fillWidth: true
             Layout.leftMargin: 14; Layout.rightMargin: 8
             Layout.preferredHeight: 44
-            Text { text: App.markers.count === 1 ? "1 marker" : App.markers.count + " markers"; color: Theme.ink3; font.pixelSize: Theme.fontLabel }
+            Segmented {
+                visible: App.markers.selectCount > 0 && App.markers.count > App.markers.selectCount
+                implicitWidth: 196
+                options: [{ text: "All " + App.markers.count }, { text: "Selects " + App.markers.selectCount }, { text: "Markers" }]
+                current: panel.filter
+                onPicked: (i) => panel.filter = i
+            }
+            Text {
+                visible: !(App.markers.selectCount > 0 && App.markers.count > App.markers.selectCount)
+                text: {
+                    const sel = App.markers.selectCount, pts = App.markers.count - sel
+                    const parts = []
+                    if (pts || !sel) parts.push(pts === 1 ? "1 marker" : pts + " markers")
+                    if (sel) parts.push(sel === 1 ? "1 select" : sel + " selects")
+                    return parts.join("  ·  ")
+                }
+                color: Theme.ink3; font.pixelSize: Theme.fontLabel
+            }
             Item { Layout.fillWidth: true }
+            Btn { glyph: "select"; tip: panel.win.selectStart >= 0 ? "End the select here" : (App.inPoint >= 0 && App.outPoint > App.inPoint ? "Make a select from In to Out" : "Start a select at the playhead"); keys: "S"; active: panel.win.selectStart >= 0; enabled: panel.mpv.loaded; onClicked: panel.win.toggleSelect() }
             Btn { glyph: "plus"; tip: "Add marker at playhead"; keys: "M"; enabled: panel.mpv.loaded; onClicked: panel.win.addMarker() }
         }
 
@@ -40,8 +60,11 @@ Item {
                 required property double time
                 required property string note
                 required property int kind
+                required property double end
+                required property bool isRange
                 width: list.width
-                height: 52
+                height: panel.shows(isRange) ? 52 : 0
+                visible: height > 0
                 color: index === list.playingRow ? Theme.accentSoft : (rowHover.hovered ? Theme.raise : "transparent")
                 Behavior on color { ColorAnimation { duration: Theme.fast } }
                 HoverHandler { id: rowHover }
@@ -52,6 +75,7 @@ Item {
                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                     onClicked: (m) => {
                         if (m.button === Qt.RightButton) { rowMenu.popup(); return }
+                        if (row.isRange && panel.mpv.loopA >= 0) panel.mpv.setLoop(row.time, row.end)
                         panel.mpv.paused = true; panel.mpv.seekTo(row.time, true)
                     }
                     onDoubleClicked: (m) => { if (m.button === Qt.LeftButton) row.edit() }
@@ -66,14 +90,14 @@ Item {
                     focusPolicy: Qt.NoFocus
                     hoverEnabled: true
                     onClicked: kindMenu.popup(kindBtn, 0, kindBtn.height + 2)
-                    contentItem: Item { Rectangle { anchors.centerIn: parent; width: 10; height: 10; radius: 5; color: Theme.kindColor(row.kind); border.width: kindBtn.hovered ? 2 : 0; border.color: Qt.lighter(Theme.kindColor(row.kind), 1.3) } }
+                    contentItem: Item { Rectangle { anchors.centerIn: parent; width: row.isRange ? 14 : 10; height: row.isRange ? 8 : 10; radius: row.isRange ? 2 : 5; color: Theme.kindColor(row.kind); border.width: kindBtn.hovered ? 2 : 0; border.color: Qt.lighter(Theme.kindColor(row.kind), 1.3) } }
                     background: Item {}
                     Tip { visible: kindBtn.hovered; text: Theme.kindName(row.kind) + ". Click to change" }
                     SMenu {
                         id: kindMenu
                         implicitWidth: 170
                         Repeater {
-                            model: 3
+                            model: 4
                             delegate: SMenuItem {
                                 required property int index
                                 text: Theme.kindName(index); checkable: true; checked: row.kind === index
@@ -119,8 +143,9 @@ Item {
                     }
                     Row {
                         spacing: 8
-                        Text { text: panel.fmt(row.time); color: Theme.ink3; font.pixelSize: Theme.fontSmall }
-                        Text { visible: row.kind !== 0; text: Theme.kindName(row.kind); color: Theme.kindColor(row.kind); font.pixelSize: Theme.fontSmall; font.weight: Font.Medium }
+                        Text { text: row.isRange ? panel.fmt(row.time) + " to " + panel.fmt(row.end) : panel.fmt(row.time); color: Theme.ink3; font.pixelSize: Theme.fontSmall }
+                        Text { visible: row.isRange; text: App.formatClock(row.end - row.time) + (row.end - row.time < 60 ? " (" + (row.end - row.time).toFixed(1) + " s)" : ""); color: Theme.ink2; font.pixelSize: Theme.fontSmall }
+                        Text { visible: row.kind !== 0 && !(row.isRange && row.kind === 3); text: Theme.kindName(row.kind); color: Theme.kindColor(row.kind); font.pixelSize: Theme.fontSmall; font.weight: Font.Medium }
                     }
                 }
                 Btn {
@@ -135,8 +160,11 @@ Item {
                     id: rowMenu
                     implicitWidth: 200
                     SMenuItem { text: "Edit note"; glyph: "transcript"; onTriggered: row.edit() }
-                    SMenuItem { text: "Set In here"; glyph: "in"; onTriggered: App.inPoint = row.time }
-                    SMenuItem { text: "Set Out here"; glyph: "out"; onTriggered: App.outPoint = row.time }
+                    SMenuItem { visible: row.isRange; height: visible ? implicitHeight : 0; text: "Play this select on a loop"; glyph: "loop"; onTriggered: { panel.mpv.setLoop(row.time, row.end); panel.mpv.seekTo(row.time, true); panel.mpv.paused = false } }
+                    SMenuItem { visible: row.isRange; height: visible ? implicitHeight : 0; text: "Set In and Out to this select"; glyph: "in"; onTriggered: { App.inPoint = row.time; App.outPoint = row.end } }
+                    SMenuItem { visible: row.isRange; height: visible ? implicitHeight : 0; text: "Export this select as a clip"; glyph: "scissors"; enabled: !App.busy; onTriggered: App.exportRanges([{ start: row.time, end: row.end, note: row.note }], true) }
+                    SMenuItem { visible: !row.isRange; height: visible ? implicitHeight : 0; text: "Set In here"; glyph: "in"; onTriggered: App.inPoint = row.time }
+                    SMenuItem { visible: !row.isRange; height: visible ? implicitHeight : 0; text: "Set Out here"; glyph: "out"; onTriggered: App.outPoint = row.time }
                     MenuSeparator { contentItem: Rectangle { implicitHeight: 1; color: Theme.line } }
                     SMenuItem { text: "Delete"; glyph: "trash"; onTriggered: App.markers.remove(row.index) }
                 }
@@ -152,7 +180,7 @@ Item {
                 Text { width: parent.width; horizontalAlignment: Text.AlignHCenter; text: "No markers"; color: Theme.ink2; font.pixelSize: Theme.fontBody }
                 Text {
                     width: parent.width; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
-                    text: "Press M while reviewing to drop a note. Shift+M marks a good take, Alt+M a mistake. They export to DaVinci Resolve."
+                    text: "Press M while reviewing to drop a note. Shift+M marks a good take, Alt+M a mistake. Press S at the start and end of a part worth keeping to make a select, then Ctrl+R sends your selects to DaVinci Resolve as a timeline."
                     color: Theme.ink3; font.pixelSize: Theme.fontLabel; lineHeight: 1.15
                 }
             }
@@ -194,7 +222,7 @@ Item {
             Layout.fillWidth: true
             Layout.leftMargin: 14; Layout.rightMargin: 8; Layout.topMargin: 8
             spacing: 8
-            Text { text: "Exporting"; color: Theme.ink2; font.pixelSize: 12 }
+            Text { text: App.busyText || "Exporting"; color: Theme.ink2; font.pixelSize: 12 }
             Rectangle {
                 Layout.fillWidth: true; height: 4; radius: 2; color: Theme.press
                 Rectangle { width: parent.width * App.busyProgress; height: parent.height; radius: 2; color: Theme.accent }
@@ -210,14 +238,11 @@ Item {
             Btn {
                 Layout.fillWidth: true
                 primary: true
-                glyph: "scissors"
-                text: "Export clip"
-                readonly property bool ready: App.inPoint >= 0 && App.outPoint > App.inPoint
-                enabled: !App.busy
-                opacity: ready ? 1 : 0.55
-                tip: ready ? "Copy In to Out without re-encoding" : "Set In (I) and Out (O) first"
-                keys: "Ctrl+E"
-                onClicked: ready ? App.exportClip(true) : panel.win.toast("Set an In point (I) and an Out point (O) first")
+                glyph: "resolve"
+                text: "Send to Resolve"
+                tip: "Build a DaVinci Resolve timeline from your selects, markers and ratings"
+                keys: "Ctrl+R"
+                onClicked: panel.win.openResolve()
             }
             Btn {
                 id: exportMore
@@ -229,13 +254,18 @@ Item {
                 SMenu {
                     id: exportMenu
                     implicitWidth: 290
+                    SMenuItem { text: "Clip from In to Out (lossless)"; glyph: "scissors"; keys: "Ctrl+E"; enabled: !App.busy && App.inPoint >= 0 && App.outPoint > App.inPoint; onTriggered: App.exportClip(true) }
                     SMenuItem { text: "Clip, frame-exact (re-encode)"; glyph: "scissors"; keys: "Ctrl+Shift+E"; enabled: !App.busy && App.inPoint >= 0 && App.outPoint > App.inPoint; onTriggered: App.exportClip(false) }
+                    SMenuItem { text: "Every select as its own clip (lossless)"; glyph: "select"; enabled: !App.busy && App.markers.selectCount > 0; onTriggered: App.exportRanges(App.markers.selects(), true) }
+                    MenuSeparator { contentItem: Rectangle { implicitHeight: 1; color: Theme.line } }
+                    SMenuItem { text: "Timeline for DaVinci Resolve…"; glyph: "resolve"; keys: "Ctrl+R"; onTriggered: panel.win.openResolve() }
                     SMenuItem { text: "Markers for DaVinci Resolve (EDL)"; glyph: "film"; enabled: App.markers.count > 0; onTriggered: App.exportMarkersEdl(panel.mpv.fps) }
                     SMenuItem { text: "Markers as spreadsheet (CSV)"; glyph: "list"; enabled: App.markers.count > 0; onTriggered: App.exportMarkersCsv(panel.mpv.fps) }
                     SMenuItem { text: "Copy as YouTube chapters"; glyph: "copy"; enabled: App.markers.count > 0; onTriggered: App.copyYouTubeChapters(panel.mpv.duration) }
                     MenuSeparator { contentItem: Rectangle { implicitHeight: 1; color: Theme.line } }
                     SMenuItem { text: "Save current frame (PNG)"; glyph: "camera"; keys: "Ctrl+Shift+S"; enabled: panel.mpv.hasVideo; onTriggered: panel.win.grabFrame() }
                     SMenuItem { text: "Copy current frame"; glyph: "copy-frame"; keys: "Ctrl+C"; enabled: panel.mpv.hasVideo; onTriggered: panel.win.toast(panel.mpv.copyFrame() ? "Frame copied. Paste it anywhere" : "Couldn't copy this frame") }
+                    SMenuItem { text: "Find thumbnail frames…"; glyph: "image"; keys: "Ctrl+T"; enabled: panel.mpv.hasVideo; onTriggered: panel.win.openThumbnails() }
                 }
             }
         }

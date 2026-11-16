@@ -1,5 +1,6 @@
 #include "markermodel.h"
 #include "timecode.h"
+#include "reviewstore.h"
 
 #include <QCryptographicHash>
 #include <QDir>
@@ -30,44 +31,119 @@ QVariant MarkerModel::data(const QModelIndex &index, int role) const
     case NoteRole: case Qt::DisplayRole: return m.note;
     case KindRole: return m.kind;
     case IdRole: return m.id;
+    case EndRole: return m.end;
+    case IsRangeRole: return m.isRange();
     }
     return {};
 }
 
 QHash<int, QByteArray> MarkerModel::roleNames() const
 {
-    return { { TimeRole, "time" }, { NoteRole, "note" }, { KindRole, "kind" }, { IdRole, "markerId" } };
+    return { { TimeRole, "time" }, { NoteRole, "note" }, { KindRole, "kind" }, { IdRole, "markerId" },
+             { EndRole, "end" }, { IsRangeRole, "isRange" } };
 }
 
-int MarkerModel::add(double time, int kind, const QString &note)
+int MarkerModel::selectCount() const
 {
-    if (!std::isfinite(time) || time < 0)
-        time = 0;
-    Marker m;
-    m.id = m_nextId++;
-    m.time = time;
-    m.kind = qBound(0, kind, 2);
-    m.note = note.isEmpty() ? QStringLiteral("Marker") : note;
-    // Insert in sorted position so rows stay stable for the view.
-    int row = int(std::upper_bound(m_items.begin(), m_items.end(), time,
+    int n = 0;
+    for (const Marker &m : m_items) if (m.isRange()) ++n;
+    return n;
+}
+
+QString MarkerModel::kindName(int k)
+{
+    switch (k) {
+    case Good: return QStringLiteral("Good take");
+    case Mistake: return QStringLiteral("Mistake");
+    case Select: return QStringLiteral("Select");
+    default: return QStringLiteral("Note");
+    }
+}
+
+void MarkerModel::commit(const QString &label, const QJsonArray &before)
+{
+    ++m_rev;
+    emit changed();
+    save();
+    if (m_gesture == 0)
+        emit edited(label, before, toJson());
+}
+
+void MarkerModel::beginGesture()
+{
+    if (m_gesture++ == 0)
+        m_gestureBefore = toJson();
+}
+
+void MarkerModel::endGesture(const QString &label)
+{
+    if (m_gesture == 0) return;
+    if (--m_gesture == 0 && m_gestureBefore != toJson())
+        emit edited(label, m_gestureBefore, toJson());
+}
+
+int MarkerModel::insertSorted(Marker m)
+{
+    int row = int(std::upper_bound(m_items.begin(), m_items.end(), m.time,
                                    [](double t, const Marker &x) { return t < x.time; }) - m_items.begin());
     beginInsertRows({}, row, row);
     m_items.insert(row, m);
     endInsertRows();
-    emit countChanged();
-    save();
     return row;
+}
+
+int MarkerModel::add(double time, int kind, const QString &note, double end)
+{
+    if (!std::isfinite(time) || time < 0)
+        time = 0;
+    const QJsonArray before = toJson();
+    Marker m;
+    m.id = m_nextId++;
+    m.time = time;
+    m.end = (std::isfinite(end) && end > time) ? end : -1;
+    m.kind = qBound(0, kind, 3);
+    m.note = note.isEmpty() ? (m.isRange() ? QStringLiteral("Select") : QStringLiteral("Marker")) : note;
+    const int row = insertSorted(m);
+    emit countChanged();
+    commit(m.isRange() ? QStringLiteral("add select") : QStringLiteral("add marker"), before);
+    return row;
+}
+
+int MarkerModel::addMany(const QVariantList &list, const QString &label)
+{
+    if (list.isEmpty()) return 0;
+    const QJsonArray before = toJson();
+    beginResetModel();
+    for (const QVariant &v : list) {
+        const QVariantMap o = v.toMap();
+        Marker m;
+        m.id = m_nextId++;
+        m.time = qMax(0.0, o.value(QStringLiteral("time")).toDouble());
+        const double e = o.value(QStringLiteral("end"), -1).toDouble();
+        m.end = e > m.time ? e : -1;
+        m.kind = qBound(0, o.value(QStringLiteral("kind")).toInt(), 3);
+        m.note = o.value(QStringLiteral("note")).toString();
+        if (m.note.isEmpty()) m.note = QStringLiteral("Marker");
+        m_items.push_back(m);
+    }
+    std::stable_sort(m_items.begin(), m_items.end(), [](const Marker &a, const Marker &b) { return a.time < b.time; });
+    endResetModel();
+    emit countChanged();
+    commit(label, before);
+    return list.size();
 }
 
 void MarkerModel::remove(int row)
 {
     if (row < 0 || row >= m_items.size())
         return;
+    const QJsonArray before = toJson();
+    const bool range = m_items[row].isRange();
     beginRemoveRows({}, row, row);
     m_items.removeAt(row);
     endRemoveRows();
     emit countChanged();
-    save();
+    commit(range ? QStringLiteral("delete select") : QStringLiteral("delete marker"), before);
 }
 
 void MarkerModel::setNote(int row, const QString &note)
@@ -77,32 +153,71 @@ void MarkerModel::setNote(int row, const QString &note)
     const QString t = note.trimmed();
     if (t.isEmpty() || t == m_items[row].note)
         return;
+    const QJsonArray before = toJson();
     m_items[row].note = t;
     emit dataChanged(index(row), index(row), { NoteRole });
-    save();
+    commit(QStringLiteral("edit note"), before);
 }
 
 void MarkerModel::cycleKind(int row)
 {
     if (row < 0 || row >= m_items.size())
         return;
-    m_items[row].kind = (m_items[row].kind + 1) % 3;
-    emit dataChanged(index(row), index(row), { KindRole });
-    save();
+    setKind(row, (m_items[row].kind + 1) % 4);
 }
 
 void MarkerModel::setKind(int row, int kind)
 {
-    if (row < 0 || row >= m_items.size() || kind < 0 || kind > 2 || m_items[row].kind == kind)
+    if (row < 0 || row >= m_items.size() || kind < 0 || kind > 3 || m_items[row].kind == kind)
         return;
+    const QJsonArray before = toJson();
     m_items[row].kind = kind;
     emit dataChanged(index(row), index(row), { KindRole });
-    save();
+    commit(QStringLiteral("change marker kind"), before);
 }
 
-double MarkerModel::timeAt(int row) const
+// Keeps the list sorted after a row's time changed, moving just that row.
+int MarkerModel::fixOrder(int row)
 {
-    return (row >= 0 && row < m_items.size()) ? m_items.at(row).time : -1;
+    int to = row;
+    while (to > 0 && m_items[to - 1].time > m_items[row].time) --to;
+    while (to < m_items.size() - 1 && m_items[to + 1].time < m_items[row].time) ++to;
+    if (to == row) return row;
+    beginMoveRows({}, row, row, {}, to > row ? to + 1 : to);
+    m_items.move(row, to);
+    endMoveRows();
+    return to;
+}
+
+int MarkerModel::setRange(int row, double start, double end)
+{
+    if (row < 0 || row >= m_items.size() || !std::isfinite(start))
+        return row;
+    Marker &m = m_items[row];
+    start = qMax(0.0, start);
+    const double newEnd = (std::isfinite(end) && end > start) ? end : -1;
+    if (qFuzzyCompare(m.time + 1, start + 1) && qFuzzyCompare(m.end + 2, newEnd + 2))
+        return row;
+    const QJsonArray before = toJson();
+    m.time = start;
+    m.end = newEnd;
+    emit dataChanged(index(row), index(row), { TimeRole, EndRole, IsRangeRole });
+    const int r = fixOrder(row);
+    commit(newEnd > 0 ? QStringLiteral("move select") : QStringLiteral("move marker"), before);
+    return r;
+}
+
+double MarkerModel::timeAt(int row) const { return (row >= 0 && row < m_items.size()) ? m_items.at(row).time : -1; }
+double MarkerModel::endAt(int row) const { return (row >= 0 && row < m_items.size()) ? m_items.at(row).end : -1; }
+int MarkerModel::kindAt(int row) const { return (row >= 0 && row < m_items.size()) ? m_items.at(row).kind : -1; }
+QString MarkerModel::noteAt(int row) const { return (row >= 0 && row < m_items.size()) ? m_items.at(row).note : QString(); }
+int MarkerModel::idAt(int row) const { return (row >= 0 && row < m_items.size()) ? m_items.at(row).id : -1; }
+
+int MarkerModel::rowOfId(int id) const
+{
+    for (int i = 0; i < m_items.size(); ++i)
+        if (m_items[i].id == id) return i;
+    return -1;
 }
 
 int MarkerModel::rowNear(double time, double tolerance) const
@@ -111,6 +226,15 @@ int MarkerModel::rowNear(double time, double tolerance) const
         if (std::fabs(m_items[i].time - time) <= tolerance)
             return i;
     return -1;
+}
+
+int MarkerModel::selectAt(double t) const
+{
+    int best = -1;
+    for (int i = 0; i < m_items.size(); ++i)
+        if (m_items[i].isRange() && t >= m_items[i].time && t < m_items[i].end)
+            best = i; // the latest-starting one wins when selects overlap
+    return best;
 }
 
 double MarkerModel::nextAfter(double time) const
@@ -129,29 +253,65 @@ double MarkerModel::prevBefore(double time) const
     return -1;
 }
 
+QVariantList MarkerModel::selects() const
+{
+    QVariantList out;
+    for (const Marker &m : m_items)
+        if (m.isRange())
+            out.append(QVariantMap{ { "start", m.time }, { "end", m.end }, { "note", m.note }, { "kind", m.kind } });
+    return out;
+}
+
 void MarkerModel::clear()
 {
     beginResetModel();
     m_items.clear();
     endResetModel();
+    ++m_rev;
     emit countChanged();
+    emit changed();
 }
 
-void MarkerModel::sortAndReset()
+QJsonArray MarkerModel::toJson(const QVector<Marker> &items)
+{
+    QJsonArray arr;
+    for (const Marker &m : items) {
+        QJsonObject o{ { "time", m.time }, { "note", m.note }, { "kind", m.kind } };
+        if (m.isRange()) o.insert(QStringLiteral("end"), m.end);
+        arr.append(o);
+    }
+    return arr;
+}
+
+QVector<MarkerModel::Marker> MarkerModel::fromJson(const QJsonArray &arr)
+{
+    QVector<Marker> out;
+    int id = 1;
+    for (const QJsonValue &v : arr) {
+        const QJsonObject o = v.toObject();
+        Marker m;
+        m.id = id++;
+        m.time = qMax(0.0, o.value(QStringLiteral("time")).toDouble());
+        const double e = o.value(QStringLiteral("end")).toDouble(-1);
+        m.end = e > m.time ? e : -1;
+        m.note = o.value(QStringLiteral("note")).toString(QStringLiteral("Marker"));
+        m.kind = qBound(0, o.value(QStringLiteral("kind")).toInt(), 3);
+        out.push_back(m);
+    }
+    std::stable_sort(out.begin(), out.end(), [](const Marker &a, const Marker &b) { return a.time < b.time; });
+    return out;
+}
+
+void MarkerModel::restore(const QJsonArray &arr)
 {
     beginResetModel();
-    std::stable_sort(m_items.begin(), m_items.end(), [](const Marker &a, const Marker &b) { return a.time < b.time; });
+    m_items = fromJson(arr);
+    for (Marker &m : m_items) m.id = m_nextId++;
     endResetModel();
+    ++m_rev;
     emit countChanged();
-}
-
-QString MarkerModel::storageFileFor(const QString &mediaPath) const
-{
-    QString dir = m_storageDir.isEmpty()
-        ? QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/markers")
-        : m_storageDir;
-    const QByteArray key = QCryptographicHash::hash(QFileInfo(mediaPath).absoluteFilePath().toUtf8(), QCryptographicHash::Sha1).toHex();
-    return dir + QLatin1Char('/') + QString::fromLatin1(key.left(20)) + QStringLiteral(".json");
+    emit changed();
+    save();
 }
 
 void MarkerModel::loadFor(const QString &mediaPath)
@@ -159,43 +319,22 @@ void MarkerModel::loadFor(const QString &mediaPath)
     m_mediaPath = mediaPath;
     beginResetModel();
     m_items.clear();
-    m_nextId = 1;
-    QFile f(storageFileFor(mediaPath));
-    if (!mediaPath.isEmpty() && f.open(QIODevice::ReadOnly)) {
-        const QJsonArray arr = QJsonDocument::fromJson(f.readAll()).object().value(QStringLiteral("markers")).toArray();
-        for (const QJsonValue &v : arr) {
-            const QJsonObject o = v.toObject();
-            Marker m;
-            m.id = m_nextId++;
-            m.time = o.value(QStringLiteral("time")).toDouble();
-            m.note = o.value(QStringLiteral("note")).toString(QStringLiteral("Marker"));
-            m.kind = qBound(0, o.value(QStringLiteral("kind")).toInt(), 2);
-            m_items.push_back(m);
-        }
+    if (!mediaPath.isEmpty()) {
+        m_items = fromJson(ReviewStore::instance().value(mediaPath, QStringLiteral("markers")).toArray());
+        for (Marker &m : m_items) m.id = m_nextId++;
     }
     endResetModel();
-    sortAndReset();
+    ++m_rev;
+    emit countChanged();
+    emit changed();
 }
 
 bool MarkerModel::save() const
 {
-    if (m_mediaPath.isEmpty())
+    if (m_mediaPath.isEmpty() || !QFileInfo(m_mediaPath).isFile())
         return false;
-    const QString file = storageFileFor(m_mediaPath);
-    QDir().mkpath(QFileInfo(file).absolutePath());
-    if (m_items.isEmpty()) {
-        QFile::remove(file);
-        return true;
-    }
-    QJsonArray arr;
-    for (const Marker &m : m_items)
-        arr.append(QJsonObject{ { "time", m.time }, { "note", m.note }, { "kind", m.kind } });
-    QJsonObject root{ { "media", QFileInfo(m_mediaPath).absoluteFilePath() }, { "markers", arr } };
-    QSaveFile f(file); // atomic write: never leaves a half-written file
-    if (!f.open(QIODevice::WriteOnly))
-        return false;
-    f.write(QJsonDocument(root).toJson());
-    return f.commit();
+    ReviewStore::instance().setValue(m_mediaPath, QStringLiteral("markers"), m_items.isEmpty() ? QJsonValue() : QJsonValue(toJson()));
+    return true;
 }
 
 static QString cleanNote(QString s)
@@ -210,29 +349,32 @@ QString MarkerModel::toEdl(const QVector<Marker> &items, double fps, const QStri
 {
     // CMX3600-style marker EDL in the layout DaVinci Resolve writes and reads
     // (Timelines > Import > Timeline Markers from EDL).
-    static const char *colours[] = { "ResolveColorYellow", "ResolveColorGreen", "ResolveColorRed" };
+    static const char *colours[] = { "ResolveColorYellow", "ResolveColorGreen", "ResolveColorRed", "ResolveColorBlue" };
     QString out;
     out += QStringLiteral("TITLE: %1\nFCM: NON-DROP FRAME\n\n").arg(cleanNote(title));
     int n = 1;
     for (const Marker &m : items) {
         const qint64 f = Timecode::frameAt(m.time, Timecode::nominalFps(fps));
         const QString in = Timecode::fromFrame(f, fps, startOffsetFrames);
-        const QString outTc = Timecode::fromFrame(f + 1, fps, startOffsetFrames);
+        const qint64 len = m.isRange() ? qMax<qint64>(1, Timecode::frameAt(m.end, Timecode::nominalFps(fps)) - f) : 1;
+        const QString outTc = Timecode::fromFrame(f + len, fps, startOffsetFrames);
         out += QStringLiteral("%1  001      V     C        %2 %3 %2 %3  \n")
                    .arg(n++, 3, 10, QLatin1Char('0')).arg(in, outTc);
-        out += QStringLiteral(" |C:%1 |M:%2 |D:1\n\n").arg(QLatin1String(colours[qBound(0, m.kind, 2)]), cleanNote(m.note));
+        out += QStringLiteral(" |C:%1 |M:%2 |D:%3\n\n").arg(QLatin1String(colours[qBound(0, m.kind, 3)]), cleanNote(m.note)).arg(len);
     }
     return out;
 }
 
 QString MarkerModel::toCsv(const QVector<Marker> &items, double fps)
 {
-    static const char *kinds[] = { "note", "good", "mistake" };
+    static const char *kinds[] = { "note", "good", "mistake", "select" };
     auto q = [](QString s) { s.replace(QLatin1Char('"'), QStringLiteral("\"\"")); return QLatin1Char('"') + s + QLatin1Char('"'); };
-    QString out = QStringLiteral("timecode,seconds,kind,note\n");
+    QString out = QStringLiteral("timecode,seconds,end_timecode,end_seconds,kind,note\n");
     for (const Marker &m : items)
-        out += QStringLiteral("%1,%2,%3,%4\n").arg(Timecode::fromSeconds(m.time, fps), QString::number(m.time, 'f', 3),
-                                                   QLatin1String(kinds[qBound(0, m.kind, 2)]), q(m.note));
+        out += QStringLiteral("%1,%2,%3,%4,%5,%6\n").arg(Timecode::fromSeconds(m.time, fps), QString::number(m.time, 'f', 3),
+                                                   m.isRange() ? Timecode::fromSeconds(m.end, fps) : QString(),
+                                                   m.isRange() ? QString::number(m.end, 'f', 3) : QString(),
+                                                   QLatin1String(kinds[qBound(0, m.kind, 3)]), q(m.note));
     return out;
 }
 

@@ -248,6 +248,7 @@ MpvObject::MpvObject(QQuickItem *parent) : QQuickFramebufferObject(parent)
         qWarning("Slate: mpv_initialize failed");
         return;
     }
+    mpv_request_log_messages(m_mpv, "warn"); // mpv's warnings and errors go to Slate's log
 
     mpv_observe_property(m_mpv, 0, "time-pos", MPV_FORMAT_DOUBLE);
     mpv_observe_property(m_mpv, 0, "duration", MPV_FORMAT_DOUBLE);
@@ -443,6 +444,12 @@ void MpvObject::onMpvEvents()
             emit atEndChanged();
             emit fileLoaded();
             break;
+        case MPV_EVENT_LOG_MESSAGE: {
+            auto *m = static_cast<mpv_event_log_message *>(ev->data);
+            const QString text = QString::fromUtf8(m->text).trimmed();
+            if (!text.isEmpty()) qWarning("mpv[%s] %s: %s", m->level, m->prefix, qPrintable(text));
+            break;
+        }
         case MPV_EVENT_PLAYBACK_RESTART: // a seek or load finished: make sure the new frame is drawn
         case MPV_EVENT_VIDEO_RECONFIG:
             update();
