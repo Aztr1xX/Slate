@@ -291,7 +291,7 @@ public:
                 qInfo("      %.1f BPM from %.2f s: found %.2f BPM, first beat %.3f s, confidence %.2f", bpm, start, found, first, conf);
                 return qAbs(found - bpm) < 0.06 && qAbs(first - start) < 0.025;
             };
-            return track(128, 0.3, false) && track(93, 0.5, true) && track(140, 0.1, true);
+            return track(128, 0.3, false) && track(93, 0.5, true) && track(140, 0.1, true) && track(72, 0.2, false);
         });
         step("exact seek to 2.0 s", [this] { m_mpv->seekTo(2.0); }, [this] { return qAbs(m_mpv->position() - 2.0) < 0.02; });
         step("frame step forward", [this] { m_f0 = m_mpv->frame(); m_mpv->stepFrame(1); }, [this] { return m_mpv->frame() == m_f0 + 1; });
@@ -513,15 +513,20 @@ public:
             { QStringLiteral("01-review"), [this] { call("showTab", 0); }, 6000 },
             { QStringLiteral("01a-markers-range"), [this] {
                   auto *app = AppController::instance();
+                  // README demo: dailies from Tears of Steel (CC BY 3.0, Blender Foundation), see docs/screenshots/CREDITS.md
                   if (app->markers()->count() == 0) {
-                      app->markers()->add(3.2, 1, QStringLiteral("Clean slate, strong start"));
-                      app->markers()->add(14.5, 0, QStringLiteral("Cut the cough here"));
-                      app->markers()->add(26.0, 2, QStringLiteral("Fluffed the line"));
+                      app->markers()->add(3.0, 1, QStringLiteral("Lovely wide on the canal"));
+                      app->markers()->add(14.5, 0, QStringLiteral("Hold on the robot hand"));
+                      app->markers()->add(27.0, 2, QStringLiteral("Effects shot not final yet"));
                   }
                   if (app->markers()->selectCount() == 0) {
-                      app->markers()->add(4.0, MarkerModel::Select, QStringLiteral("Intro, take 2"), 9.5);
-                      app->markers()->add(17.0, MarkerModel::Select, QString(), 24.0);
+                      app->markers()->add(4.5, MarkerModel::Select, QStringLiteral("Opening argument"), 12.5);
+                      app->markers()->add(16.0, MarkerModel::Select, QString(), 25.5);
                   }
+                  const QList<int> stars = { 4, 3, 5, 2, 4, 3 };
+                  const QStringList q = app->queue();
+                  for (int i = 0; i < q.size() && i < stars.size(); ++i)
+                      if (app->rating(q[i]) == 0) app->setRating(q[i], stars[i]);
                   app->setInPoint(8.0);
                   app->setOutPoint(21.5);
                   if (auto *mpv = m_win->findChild<MpvObject *>()) { mpv->setPaused(true); mpv->seekTo(12.0); }
@@ -575,7 +580,7 @@ public:
                   QTimer::singleShot(200, this, [this] {
                       if (QObject *p = m_win->findChild<QObject *>(QStringLiteral("transcriptPanel"))) {
                           p->setProperty("allClips", true);
-                          if (QObject *f = p->findChild<QObject *>(QStringLiteral("transcriptSearch"))) f->setProperty("text", QStringLiteral("desk"));
+                          if (QObject *f = p->findChild<QObject *>(QStringLiteral("transcriptSearch"))) f->setProperty("text", QStringLiteral("robot"));
                       }
                   });
               }, 1200 },
@@ -583,21 +588,20 @@ public:
                   if (QObject *p = m_win->findChild<QObject *>(QStringLiteral("transcriptPanel"))) p->setProperty("repeatsView", true);
               }, 800 },
             { QStringLiteral("13-thumbnails"), [this] { QMetaObject::invokeMethod(m_win, "openThumbnails"); }, 7000 },
-            { QStringLiteral("14-music"), [this] {
+            { QStringLiteral("14a-audio-file"), [this] {
                   QMetaObject::invokeMethod(m_win, "closeThumbnails");
                   if (QObject *p = m_win->findChild<QObject *>(QStringLiteral("transcriptPanel"))) p->setProperty("repeatsView", false);
-                  Tempo::instance()->setBpm(120, QStringLiteral("tapped"));
-                  Tempo::instance()->setFirstBeat(0.25);
+                  const QString audio = qEnvironmentVariable("SLATE_TOUR_AUDIO");
+                  if (!audio.isEmpty()) { App()->setSetting(QStringLiteral("spectrogram"), false); QMetaObject::invokeMethod(m_win, "openMedia", Q_ARG(QVariant, QVariant(audio))); }
+              }, 8000 },
+            { QStringLiteral("14-music"), [this] {
+                  if (Tempo::instance()->bpm() <= 0) { Tempo::instance()->setBpm(120, QStringLiteral("tapped")); Tempo::instance()->setFirstBeat(0.25); }
                   m_win->setProperty("beatGridOn", true);
                   call("showTab", 5);
                   if (QObject *tl = m_win->findChild<QObject *>(QStringLiteral("timeline"))) QMetaObject::invokeMethod(tl, "zoomBy", Q_ARG(QVariant, 0.45));
-              }, 1200 },
-            { QStringLiteral("14a-audio-file"), [this] {
-                  m_win->setProperty("beatGridOn", false);
-                  const QString audio = qEnvironmentVariable("SLATE_TOUR_AUDIO");
-                  if (!audio.isEmpty()) { App()->setSetting(QStringLiteral("spectrogram"), false); QMetaObject::invokeMethod(m_win, "openMedia", Q_ARG(QVariant, QVariant(audio))); }
-              }, 5000 },
+              }, 1500 },
             { QStringLiteral("14b-spectrogram"), [this] {
+                  m_win->setProperty("beatGridOn", false);
                   if (QObject *a = m_win->findChild<QObject *>(QStringLiteral("audioView"))) a->setProperty("spectrum", true);
               }, 4000 },
             { QStringLiteral("10-fullscreen"), [this] {
@@ -610,20 +614,36 @@ public:
 private:
     struct Shot { QString name; std::function<void()> act; int delay; };
     static AppController *App() { return AppController::instance(); }
-    // README screenshots of the transcript tools, without running whisper: two clips of a desk build.
+    // README screenshots of the transcript tools, without running whisper: the dialogue of the
+    // Tears of Steel dailies (from the film's own subtitles), including the bridge scene's retakes.
     void seedTranscripts()
     {
         const QStringList q = App()->queue();
         const QList<QList<QPair<double, QString>>> lines = {
-            { { 0.5, "Today we're going to build a desk from scratch." }, { 4.0, "Today we're going to build a, um" },
-              { 6.5, "Okay, today we're going to build a desk from scratch." }, { 11.0, "First, you need some decent plywood." },
-              { 15.5, "I got mine from the hardware store down the road." }, { 20.0, "Measure twice, cut once, as they say." },
-              { 24.5, "Measure twice and cut once, as they say." } },
-            { { 0.8, "Now the legs go on the desk frame." }, { 5.0, "These brackets keep the desk from wobbling." },
-              { 10.0, "Tighten every screw by hand first." }, { 15.0, "And that's the desk finished." } } };
+            { { 5.0, "You're a jerk, Thom." }, { 7.0, "Look Celia, we have to follow our passions." },
+              { 9.0, "You have your robotics, and I just want to be awesome in space." },
+              { 12.8, "Why don't you just admit that you're freaked out by my robot hand?" },
+              { 16.5, "I'm not freaked out by... it's... alright! Fine!" },
+              { 20.0, "I'm freaked out! I have nightmares that I'm being chased by these giant robotic claws of death." },
+              { 25.0, "Whatever, Thom. We're done." } },
+            { { 2.0, "And, action!" }, { 6.5, "Memory overwrite in progress!" }, { 9.0, "You're a jerk, Thom!" },
+              { 12.5, "Oh, sorry! Sorry." }, { 26.0, "Look Celia, we have to follow our passions." },
+              { 31.0, "You have your robotics, and I just want to be awesome in space." } },
+            { { 3.0, "Okay, they're coming. Two minutes left!" }, { 7.0, "Speed it up, Thom!" }, { 9.0, "Vivacissimo!" },
+              { 11.0, "Why don't you just admit that you're freaked out by my robot hand?" },
+              { 20.0, "Listen Celia, I was young..." }, { 25.0, "But that's no reason to destroy the world." },
+              { 29.0, "Why does he do this?" }, { 30.5, "We already tried that one!" }, { 35.5, "Abort!" }, { 37.0, "Cut!" } },
+            { { 3.0, "Are you ready?" }, { 5.0, "Of course you're ready, you're a rockstar." }, { 9.0, "How's it looking, Barley?" },
+              { 11.0, "We should have about ten minutes." }, { 13.5, "Well, that's perfect." },
+              { 15.5, "We're on in one! All systems go!" }, { 20.0, "Go! Go, go, go!" }, { 25.0, "I love it! Come on, go!" } },
+            { { 13.0, "Come on!" }, { 24.0, "Memory overwrite, ninety percent." }, { 26.0, "Captain! We have to abort!" } } };
         for (int i = 0; i < q.size() && i < lines.size(); ++i) {
             QJsonArray arr;
-            for (const auto &l : lines[i]) arr.append(QJsonObject{ { "start", l.first }, { "end", l.first + 3.2 }, { "text", l.second } });
+            const auto &clip = lines[i];
+            for (int k = 0; k < clip.size(); ++k) {
+                const double end = k + 1 < clip.size() ? qMin(clip[k + 1].first, clip[k].first + 4.0) : clip[k].first + 3.0;
+                arr.append(QJsonObject{ { "start", clip[k].first }, { "end", end }, { "text", clip[k].second } });
+            }
             const QString dir = ReviewStore::instance().root() + QStringLiteral("/transcripts");
             QDir().mkpath(dir);
             QFile f(dir + QLatin1Char('/') + ReviewStore::instance().fingerprintFor(q[i]) + QStringLiteral(".json"));

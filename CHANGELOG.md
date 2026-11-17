@@ -4,6 +4,15 @@ Every push to `main` publishes a new release named `1.1.<build number>`, and ins
 update themselves to it. Builds that only fixed the CI are left out below.
 Downloads: [Releases](https://github.com/Aztr1xX/Slate/releases).
 
+## 1.1.46 (2026-11-16)
+- **Tempo detection no longer reads fast music at half speed.** Drum and bass at 136 BPM used to come out as
+  68, and a 130 BPM groove as 65. Slow answers whose double tempo is also clearly on the beat now take the
+  double. Genuinely slow songs stay as they are, and **½** is still there if you disagree.
+  Files detected before keep their old tempo until you press **↻** (detect again).
+- **New README screenshots** with real footage: dailies cut from Blender's open film *Tears of Steel*
+  (including its retakes of the bridge scene, which show off repeated-take detection) and a drum and bass
+  track for the music tools. Credits are in [docs/screenshots/CREDITS.md](docs/screenshots/CREDITS.md).
+
 ## 1.1.43 (2026-11-16)
 The biggest update so far: selects, a real Resolve timeline, transcripts across a whole shoot, thumbnails,
 music tools and a crash log.

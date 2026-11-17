@@ -132,6 +132,20 @@ double Tempo::detectTempo(const QVector<float> &mono, int sr, double *first, dou
         const double sc = r[l] * w;
         if (sc > bestScore) { bestScore = sc; bestLag = l; }
     }
+    // Half-time check: a slow answer whose double is also strongly periodic is usually the
+    // double (drum and bass at 136 shows up as 68, a 130 groove as 65). Below 80 BPM, take
+    // the faster tempo when its own beat is at least 40% as strong. Halve is a click away.
+    if (60.0 / (bestLag * hopSec) < 80.0) {
+        const double hl = bestLag / 2.0;
+        const int h0 = int(std::floor(hl));
+        const double fr = hl - h0;
+        const double rh = r[h0] * (1 - fr) + r[h0 + 1] * fr;
+        if (h0 >= lagMin - 1 && rh >= 0.4 * r[bestLag]) {
+            int l2 = h0;
+            for (int l = qMax(lagMin, h0 - 1); l <= h0 + 2; ++l) if (r[l] > r[l2]) l2 = l;
+            bestLag = l2;
+        }
+    }
     double lag = bestLag;
     {
         const double a = r[bestLag - 1], b = r[bestLag], c = r[bestLag + 1];
